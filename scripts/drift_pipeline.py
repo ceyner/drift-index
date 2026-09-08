@@ -1,0 +1,48 @@
+name: DRIFT Monthly Update
+
+on:
+  # Corre automáticamente el día 5 de cada mes a las 8:00 AM (Lima, UTC-5 = 13:00 UTC)
+  schedule:
+    - cron: '0 13 5 * *'
+
+  # Permite correrlo manualmente desde GitHub → Actions → Run workflow
+  workflow_dispatch:
+
+jobs:
+  update-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    permissions:
+      contents: write    # necesario para hacer commit de los outputs
+
+    steps:
+      # 1. Descarga el repositorio
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      # 2. Configura Python 3.13
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      # 3. Instala dependencias
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      # 4. Corre el pipeline DRIFT
+      - name: Ejecutar pipeline DRIFT
+        run: python scripts/drift_pipeline.py
+
+      # 5. Commit y push de los archivos generados
+      - name: Commit outputs actualizados
+        run: |
+          git config --global user.name  "DRIFT Bot"
+          git config --global user.email "drift-bot@noreply.github.com"
+          git add data/drift_serie.csv data/drift_latest.json
+          git diff --staged --quiet || git commit -m "DRIFT actualizado $(date +'%Y-%m-%d')"
+          git push
+
+      # 6. Si algo falla, GitHub enviará email automáticamente al dueño del repo
