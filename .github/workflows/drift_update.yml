@@ -33,7 +33,7 @@ jobs:
         run: pip install -r requirements.txt
 
       # 4. Corre el pipeline DRIFT
-       - name: Ejecutar pipeline DRIFT
+      - name: Ejecutar pipeline DRIFT
         timeout-minutes: 10
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
