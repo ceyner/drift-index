@@ -41,8 +41,8 @@ jobs:
         run: |
           git config --global user.name  "DRIFT Bot"
           git config --global user.email "drift-bot@noreply.github.com"
-          git add data/drift_serie.csv data/drift_latest.json
+          git add -A data/
           git diff --staged --quiet || git commit -m "DRIFT actualizado $(date +'%Y-%m-%d')"
           git push
-
+          
       # 6. Si algo falla, GitHub enviará email automáticamente al dueño del repo
