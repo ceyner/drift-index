@@ -33,12 +33,12 @@ jobs:
         run: pip install -r requirements.txt
 
       # 4. Corre el pipeline DRIFT
-      - name: Ejecutar pipeline DRIFT
+       - name: Ejecutar pipeline DRIFT
         timeout-minutes: 10
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
         run: |
-          echo "Python version:"
           python --version
-          echo "Iniciando pipeline..."
           python scripts/drift_pipeline.py
 
       # 5. Commit y push de los archivos generados
