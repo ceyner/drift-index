@@ -34,7 +34,12 @@ jobs:
 
       # 4. Corre el pipeline DRIFT
       - name: Ejecutar pipeline DRIFT
-        run: python scripts/drift_pipeline.py
+        timeout-minutes: 10
+        run: |
+          echo "Python version:"
+          python --version
+          echo "Iniciando pipeline..."
+          python scripts/drift_pipeline.py
 
       # 5. Commit y push de los archivos generados
       - name: Commit outputs actualizados
