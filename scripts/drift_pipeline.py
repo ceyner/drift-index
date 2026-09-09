@@ -1,26 +1,17 @@
 """
-DRIFT Pipeline v2.0 — Digital Risk & Financial Trust Index
+DRIFT Pipeline v3.0 — Digital Risk & Financial Trust Index
 ==========================================================
 Autor : Ceyner D. Llontop Herrera | ORCID: 0009-0007-6058-7711
-Versión: 2.0 | Fix: extracción individual por serie (sin problemas de orden)
 
-Cambios v2.0:
-  - Cada serie BCRP se extrae individualmente → sin errores de columna
-  - FRED DXY con detección robusta de columnas
-  - DimPD preservado correctamente en todos los merges
-  - Outputs con nombres fijos (drift_serie.csv, drift_latest.json)
+Estrategia: llamadas en lote (rápido) + mapeo por config.series (correcto)
 """
 
-import requests
-import pandas as pd
-import numpy as np
-import json
-import sys
+import requests, pandas as pd, numpy as np, json, sys
 from datetime import datetime, date
 from pathlib import Path
 from io import StringIO
 
-# ── CONFIGURACIÓN ─────────────────────────────────────────────
+# ── CONFIG ────────────────────────────────────────────────────
 BASE_DIR  = Path(__file__).parent.parent
 DATA_DIR  = BASE_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
@@ -28,441 +19,316 @@ DATA_DIR.mkdir(exist_ok=True)
 INICIO    = "2018-1"
 BCRP_BASE = "https://estadisticas.bcrp.gob.pe/estadisticas/series/api"
 FRED_BASE = "https://fred.stlouisfed.org/graph/fredgraph.csv"
+IPD_OFICIAL_2025 = 15_628.0  # M ops totales 2025 (Reporte BCRP mar-2026)
 
-# Dato oficial Reporte BCRP marzo 2026
-# 665 pagos/adulto × 23.5M adultos = 15,628M ops totales en 2025
-IPD_OFICIAL_2025 = 15_628.0
+MESES = {'Ene':1,'Feb':2,'Mar':3,'Abr':4,'May':5,'Jun':6,
+         'Jul':7,'Ago':8,'Sep':9,'Oct':10,'Nov':11,'Dic':12}
 
-# ── SERIES ────────────────────────────────────────────────────
-SERIES_MAIN = {
-    'Dolarizacion': 'PN00531MM',
-    'IPC':          'PN01271PM',
-    'BVL':          'PN01158MM',
-    'IPD':          'PN39971SM',
-    'EMBI':         'PN01129XM',
-    'Adopcion':     'PN09416SM',
-}
+def a_fecha(p):
+    try: return pd.Timestamp(2000+int(p[3:]), MESES[p[:3]], 1)
+    except: return pd.NaT
 
-SERIES_DIMPD = [
-    'PN09398SM', 'PN09399SM', 'PN09400SM', 'PN09403SM',
-    'PN09406SM', 'PN09408SM', 'PN09409SM', 'PN09411SM',
-    'PN09414SM', 'PN09416SM',
-]
-
-MESES_ES = {
-    'Ene':1,'Feb':2,'Mar':3,'Abr':4,'May':5,'Jun':6,
-    'Jul':7,'Ago':8,'Sep':9,'Oct':10,'Nov':11,'Dic':12
-}
-
-def bcrp_a_fecha(periodo: str) -> pd.Timestamp:
-    try:
-        mes = MESES_ES[periodo[:3]]
-        yr  = 2000 + int(periodo[3:])
-        return pd.Timestamp(yr, mes, 1)
-    except:
-        return pd.NaT
-
-# ── EXTRACCIÓN BCRP (UNA SERIE A LA VEZ) ─────────────────────
-def fetch_serie_bcrp(codigo: str, ini: str, fin: str) -> pd.DataFrame:
+# ── FETCH BCRP (lote, mapeo por config) ──────────────────────
+def fetch_bcrp(codigos, ini, fin):
     """
-    Extrae UNA sola serie del BCRP API.
-    Sin problemas de orden — siempre solo una columna de valores.
+    Extrae hasta 10 series en una sola llamada.
+    Usa config.series de la respuesta para mapear columnas — no el índice.
     """
-    url = f"{BCRP_BASE}/{codigo}/json/{ini}/{fin}/esp"
+    url = f"{BCRP_BASE}/{'-'.join(codigos[:10])}/json/{ini}/{fin}/esp"
+    print(f"  GET {url[-80:]}")
     try:
-        r = requests.get(url, timeout=30,
-                        headers={'User-Agent': 'DRIFT-Index/2.0'})
+        r = requests.get(url, timeout=45,
+                        headers={'User-Agent':'DRIFT/3.0'})
         r.raise_for_status()
         data = r.json()
     except Exception as e:
-        print(f"    ERROR {codigo}: {e}")
-        return pd.DataFrame()
+        print(f"  ERROR: {e}"); return pd.DataFrame()
 
     if 'periods' not in data:
-        print(f"    Sin datos: {codigo}")
-        return pd.DataFrame()
+        print("  Sin datos"); return pd.DataFrame()
+
+    # Mapeo correcto: usar shortname del config, no el índice
+    cfg_series = data.get('config', {}).get('series', [])
+    # shortname puede ser el código o una descripción — buscamos el código
+    col_names = []
+    for i, s in enumerate(cfg_series):
+        sn = s.get('shortname', '').strip()
+        # Si el shortname tiene formato de código BCRP (ej: PN00531MM), usarlo
+        # Si no, usar el código que pedimos por índice
+        if len(sn) >= 6 and sn[:2].isalpha():
+            col_names.append(sn)
+        elif i < len(codigos):
+            col_names.append(codigos[i])
+        else:
+            col_names.append(f'col_{i}')
+
+    print(f"  Columnas detectadas: {col_names}")
 
     records = []
     for period in data['periods']:
-        val = period.get('values', [None])[0]
-        try:
-            valor = float(val) if val not in ['n.d.', '', None] else np.nan
-        except:
-            valor = np.nan
-        records.append({
-            'periodo': period['name'],
-            'fecha':   bcrp_a_fecha(period['name']),
-            codigo:    valor
-        })
+        row = {'periodo': period['name'], 'fecha': a_fecha(period['name'])}
+        for i, val in enumerate(period.get('values', [])):
+            if i < len(col_names):
+                try: row[col_names[i]] = float(val) if val not in ['n.d.','',None] else np.nan
+                except: row[col_names[i]] = np.nan
+        records.append(row)
 
     df = pd.DataFrame(records).sort_values('fecha').reset_index(drop=True)
-    n_ok = df[codigo].notna().sum()
-    print(f"    {codigo}: {len(df)} períodos ({n_ok} con dato)")
+    print(f"  OK: {len(df)} períodos x {len(col_names)} series")
     return df
 
+# ── FETCH FRED ────────────────────────────────────────────────
+def fetch_dxy():
+    print("  GET FRED TWEXBGSMTH...")
+    for url in [
+        f"{FRED_BASE}?id=TWEXBGSMTH",
+        f"{FRED_BASE}?id=TWEXBGSMTH&file_type=csv",
+    ]:
+        try:
+            r = requests.get(url, timeout=30)
+            r.raise_for_status()
+            df = pd.read_csv(StringIO(r.text), header=0)
+            print(f"  Columnas FRED: {list(df.columns)}")
+            # Primera col = fecha, segunda = valor — sin importar el nombre
+            df.columns = ['fecha_str', 'DXY']
+            df['fecha'] = pd.to_datetime(df['fecha_str'], errors='coerce')
+            df['DXY']   = pd.to_numeric(df['DXY'], errors='coerce')
+            df = df.dropna(subset=['fecha','DXY'])
+            df['fecha'] = df['fecha'].dt.to_period('M').dt.to_timestamp()
+            df = df.groupby('fecha')['DXY'].mean().reset_index()
+            print(f"  DXY OK: {len(df)} períodos, último={df['DXY'].iloc[-1]:.1f}")
+            return df
+        except Exception as e:
+            print(f"  Intento fallido: {e}")
+    return pd.DataFrame()
 
-def fetch_todas_bcrp(series_dict: dict, ini: str, fin: str) -> pd.DataFrame:
-    """
-    Extrae múltiples series una por una y las une por fecha.
-    Garantiza que cada columna tiene el valor correcto.
-    """
-    df_base = None
-    for nombre, codigo in series_dict.items():
-        df_serie = fetch_serie_bcrp(codigo, ini, fin)
-        if df_serie.empty:
-            continue
-        df_serie = df_serie.rename(columns={codigo: nombre})
-        if df_base is None:
-            df_base = df_serie[['periodo', 'fecha', nombre]]
-        else:
-            df_base = df_base.merge(
-                df_serie[['fecha', nombre]], on='fecha', how='outer')
+# ── DIMPD ─────────────────────────────────────────────────────
+DENOM = ['PN09398SM','PN09399SM','PN09400SM','PN09403SM','PN09406SM',
+         'PN09408SM','PN09409SM','PN09411SM','PN09414SM','PN09416SM']
 
-    if df_base is not None:
-        df_base = df_base.sort_values('fecha').reset_index(drop=True)
-    return df_base if df_base is not None else pd.DataFrame()
+def calcular_dimpd(df_denom):
+    """DimPD = PN09416SM / suma(10 series). Proyecta series incompletas."""
+    for col in DENOM:
+        if col not in df_denom.columns: continue
+        nas = df_denom[col].isna().sum()
+        if nas == 0: continue
+        ok = df_denom[col].dropna()
+        if len(ok) < 4: df_denom[col] = df_denom[col].ffill(); continue
+        t  = np.arange(len(ok))
+        cf = np.polyfit(t, ok.values, 1)
+        tp = np.arange(len(ok), len(ok)+nas)
+        pv = np.maximum(np.polyval(cf,tp), ok.iloc[-1]*0.85)
+        df_denom.loc[df_denom[col].isna(), col] = pv
+        print(f"  {col}: {nas} meses proyectados")
 
+    cols_ok = [c for c in DENOM if c in df_denom.columns]
+    df_denom['total'] = df_denom[cols_ok].sum(axis=1)
+    dimpd = df_denom['PN09416SM'] / df_denom['total']
+    print(f"  DimPD: rango {dimpd.min():.4f}–{dimpd.max():.4f}")
+    return dimpd
 
-def fetch_dimpd_bcrp(ini: str, fin: str) -> pd.DataFrame:
-    """
-    Extrae las 10 series del denominador de DimPD una por una.
-    Calcula DimPD = PN09416SM / suma(10 series).
-    Proyecta series incompletas con tendencia lineal.
-    """
-    df_base = None
-    for codigo in SERIES_DIMPD:
-        df_s = fetch_serie_bcrp(codigo, ini, fin)
-        if df_s.empty:
-            continue
-        if df_base is None:
-            df_base = df_s[['fecha', codigo]]
-        else:
-            df_base = df_base.merge(df_s[['fecha', codigo]],
-                                    on='fecha', how='outer')
+# ── IPD PROYECCIÓN ────────────────────────────────────────────
+def proyectar_ipd(df):
+    ok  = df[df['IPD'].notna()]
+    nas = df[df['IPD'].isna()]
+    if nas.empty:
+        df['IPD_proy'] = False; return df
 
-    if df_base is None or df_base.empty:
-        return pd.DataFrame()
+    ultima = ok['fecha'].max()
+    print(f"  IPD datos hasta {ultima.strftime('%b-%Y')}, proyectando {len(nas)} meses")
 
-    df_base = df_base.sort_values('fecha').reset_index(drop=True)
-
-    # Proyectar series incompletas
-    for col in SERIES_DIMPD:
-        if col not in df_base.columns:
-            continue
-        faltantes = df_base[col].isna().sum()
-        if faltantes == 0:
-            continue
-        conocidos = df_base[col].dropna()
-        if len(conocidos) < 6:
-            df_base[col] = df_base[col].ffill()
-            continue
-        t_known = np.arange(len(conocidos))
-        coef    = np.polyfit(t_known, conocidos.values, 1)
-        t_proj  = np.arange(len(conocidos),
-                            len(conocidos) + faltantes)
-        proyect = np.polyval(coef, t_proj)
-        proyect = np.maximum(proyect, conocidos.iloc[-1] * 0.85)
-        df_base.loc[df_base[col].isna(), col] = proyect
-        print(f"    {col}: {faltantes} meses proyectados")
-
-    # Calcular DimPD
-    cols_disponibles = [c for c in SERIES_DIMPD if c in df_base.columns]
-    df_base['total_pagos'] = df_base[cols_disponibles].sum(axis=1)
-    df_base['DimPD'] = df_base['PN09416SM'] / df_base['total_pagos']
-    rng = f"{df_base['DimPD'].min():.4f} – {df_base['DimPD'].max():.4f}"
-    print(f"    DimPD calculado | rango: {rng}")
-    return df_base[['fecha', 'DimPD', 'total_pagos']]
-
-
-# ── EXTRACCIÓN FRED (DXY) ────────────────────────────────────
-def fetch_dxy(ini_date: str = '2018-01-01') -> pd.DataFrame:
-    """
-    Extrae TWEXBGSMTH desde FRED con detección robusta de columnas.
-    """
-    print(f"    FRED TWEXBGSMTH...")
-    try:
-        params = {'id': 'TWEXBGSMTH',
-                  'observation_start': ini_date,
-                  'file_type': 'csv'}
-        r = requests.get(FRED_BASE, params=params, timeout=30)
-        r.raise_for_status()
-
-        # Leer sin asumir nombre de columna
-        df = pd.read_csv(StringIO(r.text), header=0)
-        print(f"    Columnas FRED: {list(df.columns)}")
-
-        # Primera columna = fecha, segunda = valor
-        df.columns = ['fecha_str', 'DXY']
-        df['fecha'] = pd.to_datetime(df['fecha_str'], errors='coerce')
-        df['DXY']   = pd.to_numeric(df['DXY'], errors='coerce')
-        df = df.dropna(subset=['fecha', 'DXY'])
-
-        # Agrupar por mes (FRED puede dar semanal o mensual)
-        df['fecha'] = df['fecha'].dt.to_period('M').dt.to_timestamp()
-        df = df.groupby('fecha')['DXY'].mean().reset_index()
-        print(f"    DXY: {len(df)} períodos | "
-              f"último: {df['DXY'].iloc[-1]:.1f}")
-        return df
-
-    except Exception as e:
-        print(f"    ERROR FRED: {e}")
-        return pd.DataFrame()
-
-
-# ── PROYECCIÓN IPD ────────────────────────────────────────────
-def proyectar_ipd(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Proyecta IPD para meses sin dato usando tendencia exponencial.
-    Ancla 2025 al dato oficial: 15,628M ops anuales.
-    """
-    conocidos      = df[df['IPD'].notna()].copy()
-    sin_dato       = df[df['IPD'].isna()].copy()
-    ultima_fecha   = conocidos['fecha'].max()
-
-    if sin_dato.empty:
-        df['IPD_proyectado'] = False
-        return df
-
-    print(f"    IPD disponible hasta: {ultima_fecha.strftime('%b-%Y')}")
-    print(f"    Proyectando {len(sin_dato)} meses...")
-
-    # Tendencia exponencial sobre log(IPD)
-    t_base  = conocidos['fecha'].min()
-    t_known = (conocidos['fecha'] - t_base).dt.days.values
-    log_y   = np.log(conocidos['IPD'].values + 1)
+    t_base  = ok['fecha'].min()
+    t_known = (ok['fecha'] - t_base).dt.days.values
+    log_y   = np.log(ok['IPD'].values + 1)
     coef    = np.polyfit(t_known, log_y, 1)
-    t_proj  = (sin_dato['fecha'] - t_base).dt.days.values
+    t_proj  = (nas['fecha'] - t_base).dt.days.values
     y_proj  = np.exp(np.polyval(coef, t_proj)) - 1
 
     # Anclar 2025 al total oficial
-    sin_dato_2025 = sin_dato[sin_dato['fecha'].dt.year == 2025]
-    if len(sin_dato_2025) > 0:
-        total_conocido_2025 = conocidos[
-            conocidos['fecha'].dt.year == 2025]['IPD'].sum()
-        restante = IPD_OFICIAL_2025 - total_conocido_2025
+    nas25 = nas[nas['fecha'].dt.year == 2025]
+    if len(nas25) > 0:
+        tot_conocido = ok[ok['fecha'].dt.year==2025]['IPD'].sum()
+        restante = max(0, IPD_OFICIAL_2025 - tot_conocido)
         if restante > 0:
-            n_meses = len(sin_dato_2025)
-            pesos   = np.linspace(1.0, 1.08, n_meses)
-            pesos  /= pesos.sum()
-            vals_2025 = restante * pesos
-            for i, idx in enumerate(sin_dato_2025.index):
-                proj_idx = list(sin_dato.index).index(idx)
-                y_proj[proj_idx] = vals_2025[i]
+            pesos = np.linspace(1.0, 1.08, len(nas25))
+            pesos /= pesos.sum()
+            vals25 = restante * pesos
+            for i, idx in enumerate(nas25.index):
+                pi = list(nas.index).index(idx)
+                y_proj[pi] = vals25[i]
 
     df = df.copy()
-    df.loc[sin_dato.index, 'IPD'] = y_proj
-    df['IPD_proyectado'] = False
-    df.loc[df['fecha'] > ultima_fecha, 'IPD_proyectado'] = True
-    print(f"    IPD proyectado hasta {df['fecha'].max().strftime('%b-%Y')}")
+    df.loc[nas.index, 'IPD'] = y_proj
+    df['IPD_proy'] = False
+    df.loc[df['fecha'] > ultima, 'IPD_proy'] = True
     return df
 
-
-# ── CÁLCULO DRIFT ─────────────────────────────────────────────
-def calcular_drift(df: pd.DataFrame) -> pd.DataFrame:
-    def mm(s, invert=False):
+# ── DRIFT ─────────────────────────────────────────────────────
+def calcular_drift(df):
+    def mm(s, inv=False):
         s2 = pd.Series(s, dtype=float).ffill().bfill()
         mn, mx = s2.min(), s2.max()
-        if mx == mn:
-            return pd.Series([50.0] * len(s2))
-        norm = (s2 - mn) / (mx - mn) * 100
-        return 100 - norm if invert else norm
+        if mx==mn: return pd.Series([50.]*len(s2))
+        n = (s2-mn)/(mx-mn)*100
+        return 100-n if inv else n
 
-    DPS     = mm(df['DimPD'])
-    DVS     = mm(df['IPD'])
-    MCS     = mm(df['Dolarizacion'], invert=True)
-    DRIFT_T = 0.40*DPS + 0.40*MCS + 0.20*DVS
+    DPS = mm(df['DimPD'])
+    DVS = mm(df['IPD'])
+    MCS = mm(df['Dolarizacion'], inv=True)
+    T   = 0.40*DPS + 0.40*MCS + 0.20*DVS
 
-    CRS     = mm(df['EMBI'])
-    DSS     = mm(df['DXY'])
-    PIS     = mm(df['IPC'].abs())
-    IGS     = mm(df['BVL'], invert=True)
-    DRIFT_R = 0.35*CRS + 0.25*DSS + 0.20*PIS + 0.20*IGS
+    CRS = mm(df['EMBI'])
+    DSS = mm(df['DXY'])
+    PIS = mm(df['IPC'].abs())
+    IGS = mm(df['BVL'], inv=True)
+    R   = 0.35*CRS + 0.25*DSS + 0.20*PIS + 0.20*IGS
 
-    DRIFT   = DRIFT_T - DRIFT_R
+    DRIFT = T - R
 
-    def regime(v):
-        if pd.isna(v):    return 'Sin datos'
-        if v >= 20:       return 'Confianza Sólida'
-        if v >= 5:        return 'Expansión'
-        if v >= -5:       return 'Equilibrio'
-        if v >= -20:      return 'Tensión Alta'
+    def reg(v):
+        if pd.isna(v): return 'Sin datos'
+        if v>=20: return 'Confianza Sólida'
+        if v>=5:  return 'Expansión'
+        if v>=-5: return 'Equilibrio'
+        if v>=-20:return 'Tensión Alta'
         return 'Crisis Severa'
 
     df = df.copy()
-    df['DPS']     = DPS.values;     df['MCS']     = MCS.values
-    df['DVS']     = DVS.values;     df['CRS']     = CRS.values
-    df['DSS']     = DSS.values;     df['PIS']     = PIS.values
-    df['IGS']     = IGS.values;     df['DRIFT_T'] = DRIFT_T.values
-    df['DRIFT_R'] = DRIFT_R.values; df['DRIFT']   = DRIFT.values
-    df['Régimen'] = DRIFT.apply(regime)
-    df['Año']     = df['fecha'].dt.year
+    df['DPS']=DPS.values; df['MCS']=MCS.values; df['DVS']=DVS.values
+    df['CRS']=CRS.values; df['DSS']=DSS.values; df['PIS']=PIS.values
+    df['IGS']=IGS.values; df['DRIFT_T']=T.values; df['DRIFT_R']=R.values
+    df['DRIFT']=DRIFT.values; df['Régimen']=DRIFT.apply(reg)
+    df['Año']=df['fecha'].dt.year
     return df
 
-
-# ── PIPELINE PRINCIPAL ────────────────────────────────────────
+# ── MAIN ─────────────────────────────────────────────────────
 def run():
-    print("=" * 60)
-    print(f"DRIFT Pipeline v2.0 | {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    print("=" * 60)
+    print("="*60)
+    print(f"DRIFT Pipeline v3.0 | {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    print("="*60)
+    sys.stdout.flush()
 
-    # Período: hasta el mes anterior al actual
-    hoy   = date.today()
-    fin_mo = hoy.month - 1 if hoy.month > 1 else 12
-    fin_yr = hoy.year if hoy.month > 1 else hoy.year - 1
-    fin   = f"{fin_yr}-{fin_mo}"
-    print(f"\nPeríodo: {INICIO} → {fin}")
+    hoy = date.today()
+    fin_mo = hoy.month-1 if hoy.month>1 else 12
+    fin_yr = hoy.year   if hoy.month>1 else hoy.year-1
+    fin = f"{fin_yr}-{fin_mo}"
+    print(f"Período: {INICIO} → {fin}\n")
 
-    # ── 1. Series BCRP principales ──────────────────────────
-    print("\n[1] Extrayendo series BCRP principales (una por una)...")
-    df = fetch_todas_bcrp(SERIES_MAIN, INICIO, fin)
-    if df is None or df.empty:
-        print("ERROR CRÍTICO: Sin datos BCRP principales.")
-        sys.exit(1)
-    print(f"  Dataset base: {len(df)} períodos × "
-          f"{len([c for c in SERIES_MAIN if c in df.columns])} series")
+    # 1. Series principales (1 llamada, 6 series)
+    print("[1] Series BCRP principales...")
+    MAIN = {'Dolarizacion':'PN00531MM','IPC':'PN01271PM','BVL':'PN01158MM',
+            'IPD':'PN39971SM','EMBI':'PN01129XM','Adopcion':'PN09416SM'}
+    df_raw = fetch_bcrp(list(MAIN.values()), INICIO, fin)
+    if df_raw.empty:
+        print("CRÍTICO: Sin datos BCRP"); sys.exit(1)
+
+    # Renombrar usando los códigos que pedimos (mapeo explícito)
+    # Primero identificar qué columnas llegaron con código correcto
+    df = df_raw[['periodo','fecha']].copy()
+    for nombre, codigo in MAIN.items():
+        if codigo in df_raw.columns:
+            df[nombre] = df_raw[codigo]
+        else:
+            # Buscar por nombre alternativo si el API devolvió shortname diferente
+            print(f"  AVISO: {codigo} no encontrado directamente")
+            df[nombre] = np.nan
 
     # Verificar dolarización
-    dol_ok = df['Dolarizacion'].dropna()
-    if len(dol_ok) > 0:
-        print(f"  Dolarización: min={dol_ok.min():.2f}% "
-              f"max={dol_ok.max():.2f}% último={dol_ok.iloc[-1]:.2f}%")
+    dol = df['Dolarizacion'].dropna()
+    print(f"  Dolarización: {dol.min():.2f}%–{dol.max():.2f}% "
+          f"(último: {dol.iloc[-1]:.2f}%)" if len(dol)>0 else "  Sin dato dolarización")
+    sys.stdout.flush()
 
-    # ── 2. DimPD ────────────────────────────────────────────
-    print("\n[2] Construyendo DimPD (denominador 10 series)...")
-    df_dimpd = fetch_dimpd_bcrp(INICIO, fin)
-    if not df_dimpd.empty:
-        df = df.merge(df_dimpd, on='fecha', how='left')
-        print(f"  DimPD incorporado | "
-              f"válidos: {df['DimPD'].notna().sum()}/{len(df)}")
+    # 2. Denominador DimPD (1 llamada, 10 series)
+    print("\n[2] Denominador DimPD (10 series)...")
+    df_denom = fetch_bcrp(DENOM, INICIO, fin)
+    if not df_denom.empty:
+        # Renombrar columnas usando los códigos que pedimos
+        df_denom_clean = df_denom[['fecha']].copy()
+        for cod in DENOM:
+            if cod in df_denom.columns:
+                df_denom_clean[cod] = df_denom[cod]
+        df_denom_clean['DimPD'] = calcular_dimpd(df_denom_clean)
+        df = df.merge(df_denom_clean[['fecha','DimPD']], on='fecha', how='left')
     else:
         df['DimPD'] = np.nan
-        print("  ADVERTENCIA: DimPD no disponible")
+    sys.stdout.flush()
 
-    # ── 3. DXY desde FRED ───────────────────────────────────
-    print("\n[3] Extrayendo DXY desde FRED...")
+    # 3. DXY
+    print("\n[3] DXY (FRED)...")
     df_dxy = fetch_dxy()
     if not df_dxy.empty:
         df = df.merge(df_dxy, on='fecha', how='left')
         df['DXY'] = df['DXY'].ffill()
-        print(f"  DXY incorporado | "
-              f"válidos: {df['DXY'].notna().sum()}/{len(df)}")
     else:
-        # Intentar con URL alternativa
-        print("  Intentando URL alternativa FRED...")
-        try:
-            alt_url = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=TWEXBGSMTH"
-            r2 = requests.get(alt_url, timeout=30)
-            df2 = pd.read_csv(StringIO(r2.text), header=0)
-            df2.columns = ['fecha_str', 'DXY']
-            df2['fecha'] = pd.to_datetime(df2['fecha_str'], errors='coerce')
-            df2['DXY']   = pd.to_numeric(df2['DXY'], errors='coerce')
-            df2 = df2.dropna(subset=['fecha'])
-            df2['fecha'] = df2['fecha'].dt.to_period('M').dt.to_timestamp()
-            df2 = df2.groupby('fecha')['DXY'].mean().reset_index()
-            df = df.merge(df2, on='fecha', how='left')
-            df['DXY'] = df['DXY'].ffill()
-            print(f"  DXY OK (alt) | último: {df['DXY'].dropna().iloc[-1]:.1f}")
-        except Exception as e2:
-            print(f"  ADVERTENCIA: DXY no disponible ({e2})")
-            df['DXY'] = np.nan
+        df['DXY'] = np.nan
+        print("  DXY no disponible — componente DSS será NaN")
+    sys.stdout.flush()
 
-    # ── 4. Proyectar IPD ────────────────────────────────────
-    print("\n[4] Verificando y proyectando IPD...")
+    # 4. IPD
+    print("\n[4] IPD proyección...")
     df = proyectar_ipd(df)
+    sys.stdout.flush()
 
-    # ── 5. Calcular DRIFT ────────────────────────────────────
+    # 5. DRIFT
     print("\n[5] Calculando DRIFT...")
-
-    # Verificar columnas críticas
-    for col in ['DimPD', 'Dolarizacion', 'IPD', 'EMBI', 'DXY', 'IPC', 'BVL']:
-        n_ok = df[col].notna().sum() if col in df.columns else 0
-        print(f"  {col}: {n_ok}/{len(df)} válidos")
-
+    for col in ['DimPD','Dolarizacion','IPD','EMBI','DXY','IPC','BVL']:
+        n = df[col].notna().sum() if col in df.columns else 0
+        print(f"  {col}: {n}/{len(df)} válidos")
     df = calcular_drift(df)
 
-    # Resumen del último período con dato completo
     df_ok = df[df['DRIFT'].notna()]
     if len(df_ok) > 0:
-        last  = df_ok.iloc[-1]
-        fav   = 0
-        for i in range(len(df_ok)-1, -1, -1):
-            if df_ok['DRIFT'].iloc[i] >= 5: fav += 1
+        last = df_ok.iloc[-1]
+        fav  = sum(1 for _ in
+                   [i for i in range(len(df_ok)-1,-1,-1)
+                    if df_ok['DRIFT'].iloc[i]>=5][::-1]
+                   if True)
+        # cuenta meses consecutivos desde el final
+        fav = 0
+        for i in range(len(df_ok)-1,-1,-1):
+            if df_ok['DRIFT'].iloc[i]>=5: fav+=1
             else: break
-        corr  = np.corrcoef(df_ok['DRIFT'],
-                            df_ok['Dolarizacion'])[0,1] if len(df_ok) > 10 else np.nan
-        print(f"\n  Último período completo: {last['periodo']}")
-        print(f"  DRIFT-T: {last['DRIFT_T']:.1f} | "
-              f"DRIFT-R: {last['DRIFT_R']:.1f}")
-        print(f"  DRIFT neto: {last['DRIFT']:+.1f} | {last['Régimen']}")
-        print(f"  Dolarización: {last['Dolarizacion']:.2f}%")
-        print(f"  DimPD: {last['DimPD']:.4f} = {last['DimPD']*100:.2f}%")
-        print(f"  Correlación DRIFT-Dolarización: {corr:.3f}")
-        print(f"  Meses consecutivos favorables: {fav}")
-    else:
-        print("  ADVERTENCIA: Sin períodos con DRIFT completo")
-        last = df.iloc[-1]
+        corr = np.corrcoef(df_ok['DRIFT'],df_ok['Dolarizacion'])[0,1]
+        print(f"\n  Último: {last['periodo']} | "
+              f"T={last['DRIFT_T']:.1f} R={last['DRIFT_R']:.1f} "
+              f"DRIFT={last['DRIFT']:+.1f} | {last['Régimen']}")
+        print(f"  Dolarización: {last['Dolarizacion']:.2f}% | "
+              f"DimPD: {last['DimPD']*100:.2f}%")
+        print(f"  Correlación: r={corr:.3f} | Meses favorables: {fav}")
 
-    # ── 6. Guardar outputs ───────────────────────────────────
-    print("\n[6] Guardando outputs...")
+    # 6. Outputs
+    print("\n[6] Guardando...")
+    cols = ['periodo','fecha','Año','DimPD','Dolarizacion','IPD','IPD_proy',
+            'EMBI','DXY','IPC','BVL','Adopcion',
+            'DPS','MCS','DVS','CRS','DSS','PIS','IGS',
+            'DRIFT_T','DRIFT_R','DRIFT','Régimen']
+    cols = [c for c in cols if c in df.columns]
+    df[cols].to_csv(DATA_DIR/"drift_serie.csv", index=False, encoding='utf-8')
+    print(f"  drift_serie.csv — {len(df)} filas")
 
-    # CSV — nombre fijo
-    cols_csv = ['periodo','fecha','Año','DimPD','Dolarizacion','IPD',
-                'IPD_proyectado','EMBI','DXY','IPC','BVL','Adopcion',
-                'DPS','MCS','DVS','CRS','DSS','PIS','IGS',
-                'DRIFT_T','DRIFT_R','DRIFT','Régimen']
-    cols_csv = [c for c in cols_csv if c in df.columns]
-    csv_path = DATA_DIR / "drift_serie.csv"
-    df[cols_csv].to_csv(csv_path, index=False, encoding='utf-8')
-    print(f"  drift_serie.csv — {len(df)} filas, {len(cols_csv)} columnas")
-
-    # JSON — nombre fijo
-    ultima_ipd = df.loc[df['IPD_proyectado'] == False,
-                        'fecha'].max() if 'IPD_proyectado' in df.columns else ''
-
-    records = []
-    for _, row in df.iterrows():
-        def safe(v, dec=1):
-            return round(float(v), dec) if pd.notna(v) else None
-        records.append({
-            'periodo':  str(row.get('periodo', '')),
-            'year':     int(row['Año']) if pd.notna(row['Año']) else None,
-            'drift':    safe(row.get('DRIFT')),
-            'drift_t':  safe(row.get('DRIFT_T')),
-            'drift_r':  safe(row.get('DRIFT_R')),
-            'dps':      safe(row.get('DPS')),
-            'mcs':      safe(row.get('MCS')),
-            'dvs':      safe(row.get('DVS')),
-            'crs':      safe(row.get('CRS')),
-            'dss':      safe(row.get('DSS')),
-            'pis':      safe(row.get('PIS')),
-            'igs':      safe(row.get('IGS')),
-            'dim_pd':   safe(row.get('DimPD'), 4),
-            'dol':      safe(row.get('Dolarizacion'), 2),
-            'embi':     safe(row.get('EMBI'), 0),
-            'dxy':      safe(row.get('DXY'), 1),
-            'ipd':      safe(row.get('IPD'), 1),
-            'ipd_proy': bool(row.get('IPD_proyectado', False)),
-            'regime':   str(row.get('Régimen', '')),
-        })
-
-    meta = {
-        'generado':     datetime.now().strftime('%Y-%m-%d %H:%M UTC'),
-        'N':            len(df),
-        'inicio':       str(df['periodo'].iloc[0]) if len(df) > 0 else '',
-        'fin':          str(df['periodo'].iloc[-1]) if len(df) > 0 else '',
-        'ipd_datos_reales_hasta': str(ultima_ipd)[:7] if ultima_ipd else '',
-        'ultimo_drift': safe(last.get('DRIFT')),
-        'ultimo_regimen': str(last.get('Régimen', '')),
-    }
-
-    json_path = DATA_DIR / "drift_latest.json"
-    with open(json_path, 'w', encoding='utf-8') as f:
-        json.dump({'meta': meta, 'series': records},
-                  f, separators=(',',':'), ensure_ascii=False)
+    def s(v,d=1): return round(float(v),d) if pd.notna(v) else None
+    records = [{'periodo':str(r.periodo),'year':int(r.Año) if pd.notna(r.Año) else None,
+                'drift':s(r.DRIFT),'drift_t':s(r.DRIFT_T),'drift_r':s(r.DRIFT_R),
+                'dps':s(r.DPS),'mcs':s(r.MCS),'dvs':s(r.DVS),
+                'crs':s(r.CRS),'dss':s(r.DSS),'pis':s(r.PIS),'igs':s(r.IGS),
+                'dim_pd':s(getattr(r,'DimPD',None),4),
+                'dol':s(r.Dolarizacion,2),'embi':s(r.EMBI,0),
+                'dxy':s(r.DXY,1),'ipd':s(r.IPD,1),
+                'ipd_proy':bool(getattr(r,'IPD_proy',False)),
+                'regime':str(r.Régimen)}
+               for r in df.itertuples()]
+    last_r = df_ok.iloc[-1] if len(df_ok)>0 else df.iloc[-1]
+    meta = {'generado':datetime.now().strftime('%Y-%m-%d %H:%M UTC'),
+            'N':len(df),'inicio':str(df['periodo'].iloc[0]),
+            'fin':str(df['periodo'].iloc[-1]),
+            'ultimo_drift':s(last_r.DRIFT),
+            'ultimo_regimen':str(last_r.Régimen)}
+    with open(DATA_DIR/"drift_latest.json",'w',encoding='utf-8') as f:
+        json.dump({'meta':meta,'series':records},f,
+                  separators=(',',':'),ensure_ascii=False)
     print(f"  drift_latest.json — {len(records)} registros")
-
-    print("\n[✓] Pipeline v2.0 completado.")
-
+    print("\n[✓] Pipeline v3.0 completado.")
 
 if __name__ == '__main__':
     run()
