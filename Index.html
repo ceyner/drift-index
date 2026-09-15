@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DRIFT — Digital Risk & Financial Trust Index | Perú</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root{
+  --navy:#1B3A6B;--teal:#0D7377;--red:#A32D2D;--green:#3B6D11;
+  --amber:#BA7517;--grey:#888780;--light:#EEF4FF;--bg:#F4F5F7;
+  --card:#FFFFFF;--border:#E2E4E9;--text:#1A1A1A;--text2:#666;--text3:#999;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
+  background:var(--bg);color:var(--text)}
+nav{background:var(--navy);padding:0 24px;display:flex;align-items:center;
+  justify-content:space-between;height:52px;position:sticky;top:0;z-index:100}
+.nav-brand{display:flex;align-items:center;gap:10px}
+.nav-logo{font-size:20px;font-weight:800;color:#fff;letter-spacing:-.5px}
+.nav-sub{font-size:10px;color:#8AAFDF;text-transform:uppercase;letter-spacing:.08em}
+.nav-tabs{display:flex;gap:2px}
+.nav-tab{padding:6px 14px;font-size:12px;color:#8AAFDF;cursor:pointer;
+  border-radius:6px;border:none;background:transparent;transition:.15s}
+.nav-tab.active,.nav-tab:hover{background:rgba(255,255,255,.12);color:#fff}
+.nav-meta{font-size:10px;color:#5A7CA8}
+.page{display:none;padding:20px 24px;max-width:1200px;margin:0 auto}
+.page.active{display:block}
+.kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
+.kpi{background:var(--card);border-radius:10px;padding:14px 16px;
+  border:1px solid var(--border)}
+.kpi-label{font-size:10px;color:var(--text3);text-transform:uppercase;
+  letter-spacing:.07em;margin-bottom:6px}
+.kpi-value{font-size:26px;font-weight:700;line-height:1;margin-bottom:4px}
+.kpi-sub{font-size:10px;color:var(--text3)}
+.card{background:var(--card);border-radius:10px;border:1px solid var(--border);
+  padding:18px;margin-bottom:16px}
+.card-title{font-size:12px;font-weight:700;color:var(--text2);
+  text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.chart-wrap{position:relative;height:220px}
+.chart-wrap.tall{height:280px}
+.tooltip-bar{display:flex;gap:12px;padding:8px 0 0;flex-wrap:wrap;
+  font-size:11px;color:var(--text2);min-height:24px;
+  border-top:1px solid var(--border);margin-top:8px}
+.signal{border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.signal h3{font-size:13px;font-weight:700;margin-bottom:6px}
+.signal p{font-size:11px;line-height:1.6;opacity:.85}
+.annual-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:6px;margin-bottom:12px}
+.yr-card{border-radius:8px;padding:8px 4px;text-align:center;cursor:pointer;
+  transition:.15s;border:2px solid transparent}
+.yr-card:hover,.yr-card.active{border-color:var(--navy)}
+.yr-label{font-size:9px;color:var(--text3);margin-bottom:4px}
+.yr-val{font-size:15px;font-weight:700}
+.bar-row{margin-bottom:8px}
+.bar-meta{display:flex;justify-content:space-between;margin-bottom:3px}
+.bar-lbl{font-size:10px;color:var(--text2)}
+.bar-val{font-size:11px;font-weight:700}
+.bar-bg{background:#EDEEF0;border-radius:3px;height:6px}
+.bar-fill{border-radius:3px;height:6px;transition:.4s}
+.insight{background:var(--light);border-left:3px solid var(--navy);
+  border-radius:0 8px 8px 0;padding:10px 14px;font-size:11px;
+  color:var(--navy);line-height:1.6;margin-bottom:16px}
+.method-table{width:100%;border-collapse:collapse;font-size:10px}
+.method-table th{background:var(--navy);color:#fff;padding:6px 8px;text-align:left}
+.method-table td{padding:5px 8px;border-bottom:1px solid #eee}
+.method-table tr:nth-child(even) td{background:#F8F8F6}
+footer{text-align:center;padding:20px;font-size:10px;color:var(--text3);
+  border-top:1px solid var(--border);margin-top:32px}
+@media(max-width:700px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .grid2{grid-template-columns:1fr}
+  .annual-grid{grid-template-columns:repeat(3,1fr)}
+}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-brand">
+    <div>
+      <div class="nav-logo">DRIFT</div>
+      <div class="nav-sub">Digital Risk &amp; Financial Trust Index</div>
+    </div>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('panorama',this)">Panorama</button>
+    <button class="nav-tab" onclick="showPage('componentes',this)">Componentes</button>
+    <button class="nav-tab" onclick="showPage('tendencia',this)">Tendencia</button>
+    <button class="nav-tab" onclick="showPage('metodologia',this)">Metodología</button>
+  </div>
+  <div class="nav-meta" id="nav-meta">Perú · N=104 meses</div>
+</nav>
+
+<!-- PANORAMA -->
+<div class="page active" id="page-panorama">
+  <div id="kpi-grid" class="kpi-grid" style="margin-top:20px"></div>
+  <div id="regime-signal"></div>
+  <div class="insight" id="main-insight"></div>
+  <div class="card">
+    <div class="card-title">Serie DRIFT mensual 2018–2026
+      <span style="font-weight:400;font-size:11px;text-transform:none"> — pase el cursor para ver el detalle</span>
+    </div>
+    <div class="chart-wrap tall"><canvas id="chart-drift"></canvas></div>
+    <div class="tooltip-bar" id="drift-tooltip">
+      <span style="color:var(--text3)">Pase el cursor sobre el gráfico</span>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">Trust vs Riesgo</div>
+      <div class="chart-wrap"><canvas id="chart-decomp"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">DRIFT vs Dolarización</div>
+      <div class="chart-wrap"><canvas id="chart-dol"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- COMPONENTES -->
+<div class="page" id="page-componentes">
+  <div style="margin-top:20px" class="grid2">
+    <div class="card">
+      <div class="card-title">DRIFT-T — Confianza Digital</div>
+      <select id="month-sel" onchange="renderComponents()"
+        style="font-size:11px;padding:3px 8px;border:1px solid var(--border);
+        border-radius:5px;background:var(--card);margin-bottom:12px"></select>
+      <div id="trust-bars"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">DRIFT-R — Riesgo Macro</div>
+      <div style="height:26px;margin-bottom:12px"></div>
+      <div id="risk-bars"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Radar de componentes — mes seleccionado vs promedio histórico</div>
+    <div class="chart-wrap tall"><canvas id="chart-radar"></canvas></div>
+  </div>
+</div>
+
+<!-- TENDENCIA -->
+<div class="page" id="page-tendencia">
+  <div style="margin-top:20px">
+    <div class="card">
+      <div class="card-title">Promedio DRIFT anual — haga clic en un año</div>
+      <div class="annual-grid" id="annual-grid"></div>
+      <div id="annual-detail"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">DRIFT anual — Trust vs Riesgo vs Neto</div>
+      <div class="chart-wrap"><canvas id="chart-annual"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Dolarización crediticia — evolución mensual</div>
+      <div class="chart-wrap"><canvas id="chart-dol2"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- METODOLOGÍA -->
+<div class="page" id="page-metodologia">
+  <div style="margin-top:20px;max-width:720px">
+    <div class="card">
+      <div class="card-title">El principio</div>
+      <p style="font-size:12px;line-height:1.7;color:var(--text2)">
+        La tecnología de pagos no crea confianza en el sol — la cataliza. El BCRP construyó esa
+        confianza en 28 años de gestión prudente. Las apps de pagos digitales la hicieron visible
+        en cada transacción cotidiana. DRIFT cuantifica el balance entre esa confianza acumulada
+        y los factores de riesgo que pueden erosionarla.</p>
+      <p style="font-size:18px;font-weight:700;color:var(--navy);
+        text-align:center;margin:16px 0">DRIFT = DRIFT-T − DRIFT-R</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Componentes y pesos</div>
+      <table class="method-table">
+        <thead><tr><th>Dim.</th><th>Código</th><th>Variable</th><th>Serie</th><th>Peso</th></tr></thead>
+        <tbody>
+          <tr><td style="color:#0D7377;font-weight:700">DRIFT-T</td><td>DPS</td><td>Penetración canales digitales</td><td>PN09416SM / 10 series</td><td>40%</td></tr>
+          <tr><td style="color:#0D7377;font-weight:700">DRIFT-T</td><td>MCS</td><td>Desdolarización crediticia</td><td>PN00531MM</td><td>40%</td></tr>
+          <tr><td style="color:#0D7377;font-weight:700">DRIFT-T</td><td>DVS</td><td>Volumen operaciones IPD</td><td>PN39971SM</td><td>20%</td></tr>
+          <tr><td style="color:#A32D2D;font-weight:700">DRIFT-R</td><td>CRS</td><td>Riesgo país EMBI</td><td>PN01129XM</td><td>35%</td></tr>
+          <tr><td style="color:#A32D2D;font-weight:700">DRIFT-R</td><td>DSS</td><td>Índice global dólar (DXY)</td><td>TWEXBGSMTH</td><td>25%</td></tr>
+          <tr><td style="color:#A32D2D;font-weight:700">DRIFT-R</td><td>PIS</td><td>Inestabilidad IPC</td><td>PN01271PM</td><td>20%</td></tr>
+          <tr><td style="color:#A32D2D;font-weight:700">DRIFT-R</td><td>IGS</td><td>Brecha mercado BVL</td><td>PN01158MM</td><td>20%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-title">Regímenes</div>
+      <table class="method-table">
+        <thead><tr><th>Régimen</th><th>Rango</th><th>Señal de negocio</th></tr></thead>
+        <tbody>
+          <tr><td style="color:#185FA5;font-weight:700">Confianza Sólida</td><td>&gt; +20</td><td>Ventana óptima para productos en soles</td></tr>
+          <tr><td style="color:#3B6D11;font-weight:700">Expansión</td><td>+5 a +20</td><td>Condiciones favorables, momentum activo</td></tr>
+          <tr><td style="color:#888780;font-weight:700">Equilibrio</td><td>−5 a +5</td><td>Transición — sensible a shocks</td></tr>
+          <tr><td style="color:#BA7517;font-weight:700">Tensión Alta</td><td>−20 a −5</td><td>Monitoreo intensivo antes de comprometer</td></tr>
+          <tr><td style="color:#A32D2D;font-weight:700">Crisis Severa</td><td>&lt; −20</td><td>Alta presión hacia dolarización defensiva</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-title">Validación empírica</div>
+      <div style="font-size:11px;color:var(--text2);line-height:2">
+        <p>Correlación DRIFT – Dolarización: <b style="color:var(--navy)">r = −0.839</b> (p &lt; 0.001, N=104)</p>
+        <p>Gradiente Psico-Digital: <b>R² = 70.0%</b>, β = −60.124, HAC t = −13.903</p>
+        <p>DRIFT máximo: <b>+55.8</b> (Feb-2021) · DRIFT mínimo: <b>−34.6</b> (Dic-2018)</p>
+        <p>Meses consecutivos en régimen favorable: <b id="meta-fav">—</b></p>
+      </div>
+    </div>
+    <div style="font-size:10px;color:var(--text3);margin-top:8px;line-height:1.8">
+      <p><b>Autor:</b> Ceyner D. Llontop Herrera | ORCID: 0009-0007-6058-7711</p>
+      <p>Maestría en Administración, mención Finanzas y Valores — UNMSM</p>
+      <p>Docente en Gestión de Riesgos — EPGR</p>
+      <p style="margin-top:4px;font-style:italic">Prototipo v2.0 · Datos: BCRP + Fed St. Louis · Actualización mensual automática</p>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <b>DRIFT</b> — Digital Risk &amp; Financial Trust Index &nbsp;|&nbsp;
+  Perú 2018–2026 &nbsp;|&nbsp; Llontop Herrera (2025) &nbsp;|&nbsp;
+  Prototipo v2.0 &nbsp;|&nbsp; <span id="footer-date"></span>
+</footer>
+
+<script>
+const DRIFT_DATA=[{"periodo":"Ene.2018","year":2018,"drift":-17.5,"drift_t":0.8,"drift_r":18.3,"dps":0.0,"mcs":1.9,"dvs":0.2,"crs":6.1,"dss":3.3,"pis":5.1,"igs":71.6,"dim_pd":0.4066,"dol":31.75,"embi":117.0,"dxy":108.4,"ipd":58.0,"ipd_proy":false,"regime":"Tensi\u00f3n Alta"},{"periodo":"Feb.2018","year":2018,"drift":-12.7,"drift_t":11.4,"drift_r":24.2,"dps":28.5,"mcs":0.0,"dvs":0.0,"crs":15.1,"dss":0.0,"pis":10.3,"igs":84.0,"dim_pd":0.4342,"dol":31.9,"embi":132.0,"dxy":107.7,"ipd":54.8,"ipd_proy":false,"regime":"Tensi\u00f3n Alta"},{"periodo":"Mar.2018","year":2018,"drift":-20.9,"drift_t":8.0,"drift_r":28.9,"dps":15.0,"mcs":4.9,"dvs":0.3,"crs":23.8,"dss":1.4,"pis":20.3,"igs":80.9,"dim_pd":0.4212,"dol":31.51,"embi":147.0,"dxy":107.9,"ipd":59.7,"ipd_proy":false,"regime":"Crisis Severa"},{"periodo":"Abr.2018","year":2018,"drift":-19.7,"drift_t":6.2,"drift_r":26.0,"dps":9.9,"mcs":5.4,"dvs":0.4,"crs":22.7,"dss":1.4,"pis":5.5,"igs":82.8,"dim_pd":0.4162,"dol":31.46,"embi":145.0,"dxy":107.9,"ipd":60.9,"ipd_proy":false,"regime":"Tensi\u00f3n Alta"},{"periodo":"May.2018","year":2018,"drift":-18.2,"drift_t":8.6,"drift_r":26.9,"dps":19.4,"mcs":2.0,"dvs":0.5,"crs":30.0,"dss":16.0,"pis":0.5,"igs":61.4,"dim_pd":0.4254,"dol":31.74,"embi":158.0,"dxy":111.0,"ipd":62.6,"ipd_proy":false,"regime":"Tensi\u00f3n Alta"},{"periodo":"Jun.2018","year":2018,"drift":-29.2,"drift_t":7.8,"drift_r":37.1,"dps":15.4,"mcs":3.9,"dvs":0.4,"crs":33.3,"dss":24.5,"pis":13.8,"igs":82.7,"dim_pd":0.4216,"dol":31.59,"embi":163.0,"dxy":112.8,"ipd":61.1,"ipd_proy":false,"regime":"Crisis Severa"},{"periodo":"Jul.2018","year":2018,"drift":-27.2,"drift_t":9.1,"drift_r":36.3,"dps":16.3,"mcs":6.1,"dvs":0.9,"crs":26.1,"dss":25.5,"pis":15.9,"igs":88.1,"dim_pd":0.4224,"dol":31.41,"embi":151.0,"dxy":113.1,"ipd":68.5,"ipd_proy":false,"regime":"Crisis Severa"},{"periodo":"Ago.2018","year":2018,"drift":-21.7,"drift_t":12.6,"drift_r":34.4,"dps":24.7,"mcs":6.6,"dvs":0.7,"crs":25.1,"dss":29.2,"pis":5.3,"igs":86.3,"dim_pd":0.4305,"dol":31.37,"embi":149.0,"dxy":113.8,"ipd":66.1,"ipd_proy":false,"regime":"Crisis Severa"},{"periodo":"Sep.2018","year":2018,"drift":-23.2,"drift_t":10.9,"drift_r":34.1,"dps":19.4,"mcs":7.6,"dvs":0.6,"crs":19.6,"dss":30.3,"pis":7.8,"igs":90.3,"dim_pd":0.4254,"dol":31.29,"embi":140.0,"dxy":114.1,"ipd":63.7,"ipd_proy":false,"regime":"Crisis Severa"},{"periodo":"Oct.2018","year":2018,"drift":-21.6,"drift_t":12.4,"drift_r":34.1,"dps":21.6,"mcs":9.1,"dvs":1.0,"crs":21.3,"dss":33.9,"pis":3.2,"igs":87.6,"dim_pd":0.4275,"dol":31.17,"embi":143.0,"dxy":114.8,"ipd":69.5,"ipd_proy":false,"regime":"Crisis Severa"},{"periodo":"Nov.2018","year":2018,"drift":-27.2,"drift_t":10.2,"drift_r":37.4,"dps":16.3,"mcs":8.7,"dvs":1.1,"crs":29.5,"dss":40.2,"pis":4.9,"igs":80.3,"dim_pd":0.4224,"dol":31.19,"embi":157.0,"dxy":116.2,"ipd":71.5,"ipd_proy":false,"regime":"Crisis Severa"},{"periodo":"Dic.2018","year":2018,"drift":-32.7,"drift_t":7.5,"drift_r":40.3,"dps":7.1,"mcs":10.9,"dvs":1.7,"crs":34.1,"dss":40.4,"pis":7.4,"igs":83.6,"dim_pd":0.4135,"dol":31.02,"embi":165.0,"dxy":116.2,"ipd":81.9,"ipd_proy":false,"regime":"Crisis Severa"},{"periodo":"Ene.2019","year":2019,"drift":-12.8,"drift_t":22.9,"drift_r":35.7,"dps":36.2,"mcs":20.3,"dvs":1.3,"crs":26.9,"dss":32.1,"pis":2.5,"igs":88.9,"dim_pd":0.4418,"dol":30.25,"embi":152.0,"dxy":114.4,"ipd":75.1,"ipd_proy":false,"regime":"Tensi\u00f3n Alta"},{"periodo":"Feb.2019","year":2019,"drift":-4.0,"drift_t":29.8,"drift_r":33.8,"dps":49.4,"mcs":24.4,"dvs":1.2,"crs":19.4,"dss":31.9,"pis":5.1,"igs":90.0,"dim_pd":0.4545,"dol":29.92,"embi":140.0,"dxy":114.4,"ipd":73.9,"ipd_proy":false,"regime":"Equilibrio"},{"periodo":"Mar.2019","year":2019,"drift":-11.9,"drift_t":25.8,"drift_r":37.7,"dps":42.4,"mcs":21.3,"dvs":1.6,"crs":17.2,"dss":33.7,"pis":30.4,"igs":86.1,"dim_pd":0.4478,"dol":30.17,"embi":136.0,"dxy":114.8,"ipd":79.8,"ipd_proy":false,"regime":"Tensi\u00f3n Alta"},{"periodo":"Abr.2019","year":2019,"drift":1.9,"drift_t":33.1,"drift_r":31.1,"dps":59.4,"mcs":22.5,"dvs":1.6,"crs":9.4,"dss":34.2,"pis":8.2,"igs":88.1,"dim_pd":0.4642,"dol":30.08,"embi":122.0,"dxy":114.9,"ipd":79.5,"ipd_proy":false,"regime":"Equilibrio"},{"periodo":"May.2019","year":2019,"drift":-0.3,"drift_t":29.3,"drift_r":29.6,"dps":53.9,"mcs":18.6,"dvs":1.9,"crs":17.2,"dss":39.2,"pis":6.0,"igs":63.2,"dim_pd":0.4588,"dol":30.4,"embi":136.0,"dxy":116.0,"ipd":83.7,"ipd_proy":false,"regime":"Equilibrio"},{"periodo":"Jun.2019","year":2019,"drift":3.7,"drift_t":34.8,"drift_r":31.1,"dps":59.5,"mcs":26.6,"dvs":1.7,"crs":13.4,"dss":36.7,"pis":3.4,"igs":82.8,"dim_pd":0.4643,"dol":29.75,"embi":129.0,"dxy":115.4,"ipd":80.9,"ipd_proy":false,"regime":"Equilibrio"},{"periodo":"Jul.2019","year":2019,"drift":7.2,"drift_t":33.2,"drift_r":26.1,"dps":56.7,"mcs":25.3,"dvs":2.3,"crs":5.8,"dss":35.1,"pis":8.3,"igs":68.1,"dim_pd":0.4616,"dol":29.85,"embi":116.0,"dxy":115.1,"ipd":90.2,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Ago.2019","year":2019,"drift":2.7,"drift_t":34.3,"drift_r":31.7,"dps":65.1,"mcs":19.6,"dvs":2.2,"crs":12.2,"dss":44.6,"pis":2.3,"igs":78.9,"dim_pd":0.4698,"dol":30.31,"embi":127.0,"dxy":117.1,"ipd":88.6,"ipd_proy":false,"regime":"Equilibrio"},{"periodo":"Sep.2019","year":2019,"drift":2.1,"drift_t":33.3,"drift_r":31.2,"dps":57.4,"mcs":24.7,"dvs":2.2,"crs":6.0,"dss":45.7,"pis":0.0,"igs":88.5,"dim_pd":0.4622,"dol":29.9,"embi":116.0,"dxy":117.3,"ipd":89.2,"ipd_proy":false,"regime":"Equilibrio"},{"periodo":"Oct.2019","year":2019,"drift":2.7,"drift_t":36.4,"drift_r":33.7,"dps":60.3,"mcs":29.5,"dvs":2.4,"crs":12.1,"dss":42.9,"pis":4.4,"igs":89.2,"dim_pd":0.4651,"dol":29.51,"embi":127.0,"dxy":116.7,"ipd":92.6,"ipd_proy":false,"regime":"Equilibrio"},{"periodo":"Nov.2019","year":2019,"drift":0.6,"drift_t":35.6,"drift_r":34.9,"dps":59.5,"mcs":28.2,"dvs":2.5,"crs":12.0,"dss":42.1,"pis":4.3,"igs":96.9,"dim_pd":0.4643,"dol":29.62,"embi":127.0,"dxy":116.6,"ipd":94.4,"ipd_proy":false,"regime":"Equilibrio"},{"periodo":"Dic.2019","year":2019,"drift":8.1,"drift_t":40.2,"drift_r":32.1,"dps":58.9,"mcs":39.7,"dvs":3.6,"crs":5.7,"dss":39.0,"pis":8.8,"igs":92.9,"dim_pd":0.4637,"dol":28.68,"embi":116.0,"dxy":115.9,"ipd":111.0,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Ene.2020","year":2020,"drift":14.2,"drift_t":40.8,"drift_r":26.7,"dps":66.6,"mcs":34.3,"dvs":2.4,"crs":4.5,"dss":36.0,"pis":2.0,"igs":78.6,"dim_pd":0.4712,"dol":29.12,"embi":114.0,"dxy":115.3,"ipd":91.9,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Feb.2020","year":2020,"drift":13.8,"drift_t":46.5,"drift_r":32.7,"dps":81.2,"mcs":33.9,"dvs":2.3,"crs":9.3,"dss":42.8,"pis":5.7,"igs":88.1,"dim_pd":0.4853,"dol":29.15,"embi":122.0,"dxy":116.7,"ipd":90.0,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Mar.2020","year":2020,"drift":-7.2,"drift_t":48.7,"drift_r":55.9,"dps":91.3,"mcs":30.0,"dvs":1.1,"crs":83.1,"dss":63.1,"pis":27.0,"igs":28.2,"dim_pd":0.4952,"dol":29.47,"embi":249.0,"dxy":121.0,"ipd":72.0,"ipd_proy":false,"regime":"Tensi\u00f3n Alta"},{"periodo":"Abr.2020","year":2020,"drift":-20.7,"drift_t":52.8,"drift_r":73.5,"dps":98.2,"mcs":33.9,"dvs":0.0,"crs":100.0,"dss":73.8,"pis":4.1,"igs":96.0,"dim_pd":0.5018,"dol":29.16,"embi":278.0,"dxy":123.3,"ipd":54.3,"ipd_proy":false,"regime":"Crisis Severa"},{"periodo":"May.2020","year":2020,"drift":4.7,"drift_t":65.7,"drift_r":61.0,"dps":100.0,"mcs":63.7,"dvs":1.1,"crs":67.6,"dss":70.6,"pis":8.3,"igs":89.9,"dim_pd":0.5036,"dol":26.74,"embi":222.0,"dxy":122.6,"ipd":72.1,"ipd_proy":false,"regime":"Equilibrio"},{"periodo":"Jun.2020","year":2020,"drift":18.8,"drift_t":68.0,"drift_r":49.2,"dps":99.7,"mcs":69.4,"dvs":2.0,"crs":43.0,"dss":56.8,"pis":10.9,"igs":88.9,"dim_pd":0.5033,"dol":26.27,"embi":180.0,"dxy":119.7,"ipd":86.0,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Jul.2020","year":2020,"drift":18.5,"drift_t":66.2,"drift_r":47.7,"dps":83.3,"mcs":80.7,"dvs":2.9,"crs":36.8,"dss":52.1,"pis":19.2,"igs":89.6,"dim_pd":0.4874,"dol":25.36,"embi":169.0,"dxy":118.7,"ipd":101.0,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Ago.2020","year":2020,"drift":35.6,"drift_t":72.7,"drift_r":37.1,"dps":89.0,"mcs":91.2,"dvs":3.2,"crs":23.0,"dss":43.9,"pis":4.4,"igs":86.1,"dim_pd":0.4929,"dol":24.5,"embi":146.0,"dxy":116.9,"ipd":105.3,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Sep.2020","year":2020,"drift":34.8,"drift_t":74.1,"drift_r":39.3,"dps":86.9,"mcs":96.7,"dvs":3.3,"crs":31.6,"dss":41.0,"pis":5.5,"igs":84.4,"dim_pd":0.4909,"dol":24.05,"embi":160.0,"dxy":116.3,"ipd":107.0,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Oct.2020","year":2020,"drift":33.4,"drift_t":70.0,"drift_r":36.6,"dps":78.6,"mcs":94.4,"dvs":4.1,"crs":25.6,"dss":38.4,"pis":0.4,"igs":90.0,"dim_pd":0.4828,"dol":24.24,"embi":150.0,"dxy":115.8,"ipd":118.8,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Nov.2020","year":2020,"drift":35.1,"drift_t":72.2,"drift_r":37.2,"dps":80.0,"mcs":98.5,"dvs":4.2,"crs":23.8,"dss":30.4,"pis":21.7,"igs":84.6,"dim_pd":0.4842,"dol":23.91,"embi":147.0,"dxy":114.1,"ipd":120.6,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Dic.2020","year":2020,"drift":42.9,"drift_t":71.8,"drift_r":28.8,"dps":76.9,"mcs":99.7,"dvs":5.8,"crs":21.6,"dss":20.1,"pis":1.8,"igs":79.5,"dim_pd":0.4811,"dol":23.81,"embi":143.0,"dxy":111.9,"ipd":146.1,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Ene.2021","year":2021,"drift":40.0,"drift_t":72.3,"drift_r":32.3,"dps":84.2,"mcs":94.3,"dvs":4.6,"crs":14.8,"dss":18.1,"pis":31.0,"igs":81.7,"dim_pd":0.4882,"dol":24.25,"embi":132.0,"dxy":111.5,"ipd":126.6,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Feb.2021","year":2021,"drift":55.8,"drift_t":79.1,"drift_r":23.3,"dps":95.8,"mcs":100.0,"dvs":3.7,"crs":18.6,"dss":20.6,"pis":5.0,"igs":53.0,"dim_pd":0.4995,"dol":23.79,"embi":138.0,"dxy":112.0,"ipd":113.6,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Mar.2021","year":2021,"drift":29.5,"drift_t":71.1,"drift_r":41.6,"dps":81.5,"mcs":93.5,"dvs":5.5,"crs":34.3,"dss":26.8,"pis":35.1,"igs":79.2,"dim_pd":0.4857,"dol":24.32,"embi":165.0,"dxy":113.3,"ipd":141.1,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Abr.2021","year":2021,"drift":35.8,"drift_t":69.8,"drift_r":34.0,"dps":82.4,"mcs":89.7,"dvs":5.1,"crs":33.9,"dss":23.5,"pis":4.1,"igs":77.1,"dim_pd":0.4865,"dol":24.62,"embi":164.0,"dxy":112.6,"ipd":135.0,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"May.2021","year":2021,"drift":37.7,"drift_t":71.1,"drift_r":33.3,"dps":93.6,"mcs":80.9,"dvs":6.3,"crs":33.4,"dss":16.8,"pis":11.0,"igs":76.2,"dim_pd":0.4974,"dol":25.33,"embi":164.0,"dxy":111.2,"ipd":153.8,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Jun.2021","year":2021,"drift":28.7,"drift_t":67.4,"drift_r":38.7,"dps":86.9,"mcs":78.7,"dvs":6.0,"crs":36.7,"dss":18.5,"pis":21.6,"igs":84.4,"dim_pd":0.4909,"dol":25.52,"embi":169.0,"dxy":111.6,"ipd":149.6,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Jul.2021","year":2021,"drift":20.6,"drift_t":65.9,"drift_r":45.2,"dps":88.5,"mcs":72.3,"dvs":7.6,"crs":37.1,"dss":25.5,"pis":42.2,"igs":87.0,"dim_pd":0.4924,"dol":26.03,"embi":170.0,"dxy":113.1,"ipd":175.3,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Ago.2021","year":2021,"drift":20.3,"drift_t":68.9,"drift_r":48.6,"dps":92.0,"mcs":76.4,"dvs":7.6,"crs":44.7,"dss":27.2,"pis":41.2,"igs":89.4,"dim_pd":0.4958,"dol":25.7,"embi":183.0,"dxy":113.4,"ipd":175.2,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Sep.2021","year":2021,"drift":29.3,"drift_t":68.5,"drift_r":39.2,"dps":87.2,"mcs":80.3,"dvs":7.6,"crs":39.5,"dss":27.3,"pis":16.6,"igs":76.1,"dim_pd":0.4911,"dol":25.39,"embi":174.0,"dxy":113.4,"ipd":174.5,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Oct.2021","year":2021,"drift":30.0,"drift_t":72.7,"drift_r":42.7,"dps":89.4,"mcs":88.2,"dvs":8.3,"crs":38.1,"dss":30.3,"pis":24.3,"igs":84.8,"dim_pd":0.4933,"dol":24.75,"embi":172.0,"dxy":114.1,"ipd":186.3,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Nov.2021","year":2021,"drift":29.4,"drift_t":72.6,"drift_r":43.2,"dps":90.3,"mcs":87.1,"dvs":8.2,"crs":42.6,"dss":34.6,"pis":14.8,"igs":83.5,"dim_pd":0.4942,"dol":24.84,"embi":179.0,"dxy":115.0,"ipd":185.2,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Dic.2021","year":2021,"drift":21.9,"drift_t":68.8,"drift_r":46.9,"dps":78.7,"mcs":88.1,"dvs":10.7,"crs":39.7,"dss":38.5,"pis":32.7,"igs":84.5,"dim_pd":0.4829,"dol":24.76,"embi":174.0,"dxy":115.8,"ipd":224.3,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Ene.2022","year":2022,"drift":32.1,"drift_t":73.1,"drift_r":41.0,"dps":84.6,"mcs":94.1,"dvs":8.2,"crs":41.1,"dss":34.9,"pis":1.3,"igs":88.4,"dim_pd":0.4886,"dol":24.26,"embi":177.0,"dxy":115.0,"ipd":183.7,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Feb.2022","year":2022,"drift":29.0,"drift_t":76.6,"drift_r":47.6,"dps":87.9,"mcs":99.0,"dvs":9.1,"crs":53.3,"dss":34.7,"pis":12.9,"igs":88.6,"dim_pd":0.4919,"dol":23.87,"embi":198.0,"dxy":115.0,"ipd":199.1,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Mar.2022","year":2022,"drift":12.7,"drift_t":71.3,"drift_r":58.6,"dps":73.2,"mcs":99.5,"dvs":11.1,"crs":55.0,"dss":40.8,"pis":62.2,"igs":83.5,"dim_pd":0.4776,"dol":23.83,"embi":201.0,"dxy":116.3,"ipd":230.1,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Abr.2022","year":2022,"drift":13.4,"drift_t":67.4,"drift_r":54.0,"dps":75.1,"mcs":88.0,"dvs":10.7,"crs":46.9,"dss":44.9,"pis":40.3,"igs":91.4,"dim_pd":0.4794,"dol":24.76,"embi":187.0,"dxy":117.2,"ipd":224.9,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"May.2022","year":2022,"drift":13.0,"drift_t":71.9,"drift_r":59.0,"dps":82.4,"mcs":91.3,"dvs":12.3,"crs":64.8,"dss":56.9,"pis":15.9,"igs":94.4,"dim_pd":0.4865,"dol":24.49,"embi":218.0,"dxy":119.7,"ipd":250.1,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Jun.2022","year":2022,"drift":1.4,"drift_t":66.6,"drift_r":65.3,"dps":80.9,"mcs":79.4,"dvs":12.6,"crs":62.5,"dss":58.4,"pis":49.9,"igs":94.0,"dim_pd":0.485,"dol":25.46,"embi":214.0,"dxy":120.0,"ipd":254.6,"ipd_proy":false,"regime":"Equilibrio"},{"periodo":"Jul.2022","year":2022,"drift":-6.1,"drift_t":65.1,"drift_r":71.1,"dps":88.3,"mcs":67.3,"dvs":14.3,"crs":75.2,"dss":71.3,"pis":39.4,"igs":95.5,"dim_pd":0.4922,"dol":26.44,"embi":235.0,"dxy":122.8,"ipd":280.8,"ipd_proy":false,"regime":"Tensi\u00f3n Alta"},{"periodo":"Ago.2022","year":2022,"drift":7.2,"drift_t":70.5,"drift_r":63.3,"dps":95.8,"mcs":72.7,"dvs":15.5,"crs":61.0,"dss":69.2,"pis":27.8,"igs":95.5,"dim_pd":0.4995,"dol":26.0,"embi":211.0,"dxy":122.3,"ipd":300.4,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Sep.2022","year":2022,"drift":-2.3,"drift_t":64.7,"drift_r":67.1,"dps":87.6,"mcs":66.2,"dvs":15.9,"crs":69.3,"dss":84.7,"pis":21.8,"igs":86.3,"dim_pd":0.4916,"dol":26.53,"embi":225.0,"dxy":125.6,"ipd":307.4,"ipd_proy":false,"regime":"Equilibrio"},{"periodo":"Oct.2022","year":2022,"drift":-16.5,"drift_t":55.2,"drift_r":71.8,"dps":66.6,"mcs":62.7,"dvs":17.5,"crs":79.4,"dss":93.6,"pis":14.4,"igs":88.4,"dim_pd":0.4712,"dol":26.82,"embi":243.0,"dxy":127.5,"ipd":332.9,"ipd_proy":false,"regime":"Tensi\u00f3n Alta"},{"periodo":"Nov.2022","year":2022,"drift":5.5,"drift_t":66.2,"drift_r":60.7,"dps":85.3,"mcs":71.2,"dvs":18.3,"crs":56.6,"dss":81.2,"pis":21.6,"igs":81.6,"dim_pd":0.4894,"dol":26.13,"embi":203.0,"dxy":124.9,"ipd":344.4,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Dic.2022","year":2022,"drift":4.9,"drift_t":64.9,"drift_r":60.0,"dps":81.3,"mcs":70.7,"dvs":20.7,"crs":52.0,"dss":68.8,"pis":33.2,"igs":89.7,"dim_pd":0.4854,"dol":26.17,"embi":196.0,"dxy":122.2,"ipd":382.9,"ipd_proy":false,"regime":"Equilibrio"},{"periodo":"Ene.2023","year":2023,"drift":8.4,"drift_t":64.8,"drift_r":56.5,"dps":87.5,"mcs":65.5,"dvs":18.2,"crs":58.7,"dss":57.4,"pis":9.3,"igs":98.5,"dim_pd":0.4914,"dol":26.59,"embi":207.0,"dxy":119.8,"ipd":343.6,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Feb.2023","year":2023,"drift":10.3,"drift_t":65.2,"drift_r":54.8,"dps":88.2,"mcs":65.7,"dvs":18.0,"crs":50.1,"dss":59.7,"pis":12.1,"igs":99.6,"dim_pd":0.4921,"dol":26.57,"embi":192.0,"dxy":120.3,"ipd":339.5,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Mar.2023","year":2023,"drift":-0.6,"drift_t":64.4,"drift_r":65.0,"dps":85.3,"mcs":65.2,"dvs":21.1,"crs":56.8,"dss":61.8,"pis":52.6,"igs":95.6,"dim_pd":0.4893,"dol":26.61,"embi":204.0,"dxy":120.7,"ipd":388.8,"ipd_proy":false,"regime":"Equilibrio"},{"periodo":"Abr.2023","year":2023,"drift":6.8,"drift_t":64.5,"drift_r":57.7,"dps":82.7,"mcs":68.1,"dvs":21.1,"crs":55.7,"dss":54.7,"pis":23.2,"igs":99.4,"dim_pd":0.4868,"dol":26.38,"embi":202.0,"dxy":119.2,"ipd":389.2,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"May.2023","year":2023,"drift":11.8,"drift_t":66.6,"drift_r":54.8,"dps":85.3,"mcs":69.3,"dvs":24.0,"crs":53.1,"dss":56.5,"pis":13.1,"igs":97.5,"dim_pd":0.4893,"dol":26.28,"embi":197.0,"dxy":119.6,"ipd":436.0,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Jun.2023","year":2023,"drift":18.3,"drift_t":68.1,"drift_r":49.9,"dps":87.0,"mcs":71.2,"dvs":24.4,"crs":43.6,"dss":55.0,"pis":6.2,"igs":98.1,"dim_pd":0.4909,"dol":26.13,"embi":181.0,"dxy":119.3,"ipd":441.0,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Jul.2023","year":2023,"drift":22.3,"drift_t":70.6,"drift_r":48.2,"dps":87.0,"mcs":75.8,"dvs":27.4,"crs":36.5,"dss":49.1,"pis":16.2,"igs":99.7,"dim_pd":0.491,"dol":25.76,"embi":169.0,"dxy":118.0,"ipd":488.5,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Ago.2023","year":2023,"drift":21.3,"drift_t":69.1,"drift_r":47.7,"dps":91.2,"mcs":67.6,"dvs":27.8,"crs":35.5,"dss":57.6,"pis":15.6,"igs":88.9,"dim_pd":0.4951,"dol":26.42,"embi":167.0,"dxy":119.9,"ipd":496.3,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Sep.2023","year":2023,"drift":13.1,"drift_t":62.4,"drift_r":49.3,"dps":84.7,"mcs":56.9,"dvs":29.0,"crs":36.6,"dss":66.1,"pis":0.4,"igs":99.4,"dim_pd":0.4887,"dol":27.29,"embi":169.0,"dxy":121.6,"ipd":515.4,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Oct.2023","year":2023,"drift":9.4,"drift_t":65.7,"drift_r":56.4,"dps":89.9,"mcs":58.4,"dvs":32.1,"crs":42.9,"dss":74.8,"pis":13.3,"igs":100.0,"dim_pd":0.4938,"dol":27.16,"embi":180.0,"dxy":123.5,"ipd":563.4,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Nov.2023","year":2023,"drift":15.9,"drift_t":67.3,"drift_r":51.4,"dps":86.0,"mcs":65.7,"dvs":33.3,"crs":40.2,"dss":64.1,"pis":6.6,"igs":100.0,"dim_pd":0.49,"dol":26.57,"embi":175.0,"dxy":121.2,"ipd":583.0,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Dic.2023","year":2023,"drift":17.1,"drift_t":65.1,"drift_r":48.0,"dps":77.5,"mcs":66.3,"dvs":37.9,"crs":32.7,"dss":57.5,"pis":16.8,"igs":93.8,"dim_pd":0.4818,"dol":26.52,"embi":162.0,"dxy":119.8,"ipd":655.4,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Ene.2024","year":2024,"drift":19.5,"drift_t":65.9,"drift_r":46.4,"dps":87.7,"mcs":60.1,"dvs":34.1,"crs":37.4,"dss":59.4,"pis":0.5,"igs":91.9,"dim_pd":0.4917,"dol":27.03,"embi":170.0,"dxy":120.2,"ipd":595.0,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Feb.2024","year":2024,"drift":21.6,"drift_t":71.4,"drift_r":49.8,"dps":95.2,"mcs":65.7,"dvs":35.1,"crs":31.5,"dss":63.3,"pis":23.2,"igs":91.4,"dim_pd":0.499,"dol":26.57,"embi":160.0,"dxy":121.1,"ipd":611.2,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Mar.2024","year":2024,"drift":17.1,"drift_t":69.0,"drift_r":51.9,"dps":87.2,"mcs":65.7,"dvs":39.4,"crs":27.1,"dss":61.4,"pis":42.3,"igs":93.2,"dim_pd":0.4912,"dol":26.57,"embi":153.0,"dxy":120.7,"ipd":679.8,"ipd_proy":false,"regime":"Expansi\u00f3n"},{"periodo":"Abr.2024","year":2024,"drift":25.9,"drift_t":70.7,"drift_r":44.8,"dps":91.8,"mcs":64.4,"dvs":40.8,"crs":27.7,"dss":68.4,"pis":1.9,"igs":88.0,"dim_pd":0.4957,"dol":26.67,"embi":154.0,"dxy":122.1,"ipd":702.2,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"May.2024","year":2024,"drift":42.2,"drift_t":69.8,"drift_r":27.6,"dps":86.4,"mcs":65.8,"dvs":44.5,"crs":28.9,"dss":67.1,"pis":3.6,"igs":0.0,"dim_pd":0.4904,"dol":26.56,"embi":156.0,"dxy":121.9,"ipd":760.2,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Jun.2024","year":2024,"drift":20.1,"drift_t":69.4,"drift_r":49.3,"dps":84.5,"mcs":66.3,"dvs":45.6,"crs":31.9,"dss":75.8,"pis":4.9,"igs":91.3,"dim_pd":0.4885,"dol":26.52,"embi":161.0,"dxy":123.7,"ipd":778.5,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Jul.2024","year":2024,"drift":24.5,"drift_t":74.7,"drift_r":50.3,"dps":87.3,"mcs":73.9,"dvs":51.1,"crs":30.6,"dss":74.3,"pis":9.7,"igs":95.3,"dim_pd":0.4913,"dol":25.9,"embi":159.0,"dxy":123.4,"ipd":864.9,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Ago.2024","year":2024,"drift":29.3,"drift_t":77.1,"drift_r":47.9,"dps":92.4,"mcs":75.1,"dvs":50.9,"crs":36.9,"dss":70.6,"pis":11.7,"igs":74.9,"dim_pd":0.4962,"dol":25.81,"embi":170.0,"dxy":122.6,"ipd":861.8,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Sep.2024","year":2024,"drift":31.9,"drift_t":79.1,"drift_r":47.2,"dps":94.7,"mcs":75.9,"dvs":54.4,"crs":32.8,"dss":67.2,"pis":9.7,"igs":84.8,"dim_pd":0.4984,"dol":25.74,"embi":163.0,"dxy":121.9,"ipd":917.9,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Oct.2024","year":2024,"drift":28.8,"drift_t":76.6,"drift_r":47.8,"dps":88.7,"mcs":73.9,"dvs":57.9,"crs":27.6,"dss":75.3,"pis":3.7,"igs":92.9,"dim_pd":0.4926,"dol":25.91,"embi":154.0,"dxy":123.6,"ipd":973.3,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Nov.2024","year":2024,"drift":32.8,"drift_t":78.1,"drift_r":45.2,"dps":91.4,"mcs":74.4,"dvs":58.7,"crs":28.6,"dss":88.1,"pis":3.7,"igs":62.3,"dim_pd":0.4953,"dol":25.87,"embi":155.0,"dxy":126.3,"ipd":985.9,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Dic.2024","year":2024,"drift":30.4,"drift_t":77.5,"drift_r":47.1,"dps":89.6,"mcs":71.4,"dvs":65.6,"crs":28.1,"dss":94.0,"pis":4.2,"igs":64.7,"dim_pd":0.4935,"dol":26.11,"embi":154.0,"dxy":127.6,"ipd":1095.8,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Ene.2025","year":2025,"drift":24.3,"drift_t":79.3,"drift_r":55.0,"dps":94.1,"mcs":74.3,"dvs":59.7,"crs":29.4,"dss":100.0,"pis":3.7,"igs":94.9,"dim_pd":0.4979,"dol":25.87,"embi":157.0,"dxy":128.8,"ipd":1001.7,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Feb.2025","year":2025,"drift":25.0,"drift_t":80.1,"drift_r":55.1,"dps":97.0,"mcs":74.4,"dvs":57.9,"crs":30.3,"dss":95.5,"pis":7.7,"igs":95.5,"dim_pd":0.5007,"dol":25.87,"embi":158.0,"dxy":127.9,"ipd":973.8,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Mar.2025","year":2025,"drift":25.7,"drift_t":82.7,"drift_r":57.0,"dps":93.7,"mcs":79.2,"dvs":67.8,"crs":33.3,"dss":87.8,"pis":33.9,"igs":83.2,"dim_pd":0.4974,"dol":25.47,"embi":163.0,"dxy":126.2,"ipd":1130.1,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Abr.2025","year":2025,"drift":26.8,"drift_t":81.9,"drift_r":55.2,"dps":92.8,"mcs":78.3,"dvs":67.4,"crs":41.6,"dss":77.8,"pis":13.1,"igs":92.7,"dim_pd":0.4966,"dol":25.54,"embi":178.0,"dxy":124.1,"ipd":1125.1,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"May.2025","year":2025,"drift":36.0,"drift_t":81.6,"drift_r":45.6,"dps":90.0,"mcs":77.6,"dvs":73.0,"crs":30.5,"dss":69.3,"pis":2.1,"igs":85.9,"dim_pd":0.4939,"dol":25.61,"embi":159.0,"dxy":122.3,"ipd":1212.8,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Jun.2025","year":2025,"drift":41.0,"drift_t":84.6,"drift_r":43.6,"dps":97.7,"mcs":77.6,"dvs":72.2,"crs":27.7,"dss":61.1,"pis":5.2,"igs":87.8,"dim_pd":0.5014,"dol":25.6,"embi":154.0,"dxy":120.6,"ipd":1199.8,"ipd_proy":false,"regime":"Confianza S\u00f3lida"},{"periodo":"Jul.2025","year":2025,"drift":41.8,"drift_t":84.3,"drift_r":42.5,"dps":90.1,"mcs":77.0,"dvs":87.3,"crs":20.0,"dss":58.8,"pis":9.5,"igs":94.4,"dim_pd":0.494,"dol":25.65,"embi":141.0,"dxy":120.1,"ipd":1439.8,"ipd_proy":true,"regime":"Confianza S\u00f3lida"},{"periodo":"Ago.2025","year":2025,"drift":47.3,"drift_t":88.4,"drift_r":41.2,"dps":96.1,"mcs":80.6,"dvs":88.7,"crs":15.8,"dss":61.0,"pis":12.0,"igs":89.9,"dim_pd":0.4998,"dol":25.36,"embi":133.0,"dxy":120.6,"ipd":1462.9,"ipd_proy":true,"regime":"Confianza S\u00f3lida"},{"periodo":"Sep.2025","year":2025,"drift":48.4,"drift_t":83.3,"drift_r":34.9,"dps":80.3,"mcs":82.8,"dvs":90.2,"crs":10.4,"dss":58.4,"pis":0.2,"igs":83.1,"dim_pd":0.4844,"dol":25.18,"embi":124.0,"dxy":120.0,"ipd":1485.9,"ipd_proy":true,"regime":"Confianza S\u00f3lida"},{"periodo":"Oct.2025","year":2025,"drift":49.2,"drift_t":86.2,"drift_r":37.0,"dps":80.2,"mcs":89.5,"dvs":91.6,"crs":10.1,"dss":61.9,"pis":3.9,"igs":86.3,"dim_pd":0.4844,"dol":24.64,"embi":124.0,"dxy":120.8,"ipd":1509.0,"ipd_proy":true,"regime":"Confianza S\u00f3lida"},{"periodo":"Nov.2025","year":2025,"drift":51.1,"drift_t":88.9,"drift_r":37.8,"dps":82.6,"mcs":93.1,"dvs":93.1,"crs":11.3,"dss":65.0,"pis":4.4,"igs":83.7,"dim_pd":0.4867,"dol":24.35,"embi":126.0,"dxy":121.4,"ipd":1532.0,"ipd_proy":true,"regime":"Confianza S\u00f3lida"},{"periodo":"Dic.2025","year":2025,"drift":30.8,"drift_t":67.7,"drift_r":36.8,"dps":30.2,"mcs":91.7,"dvs":94.5,"crs":12.1,"dss":59.2,"pis":10.0,"igs":79.0,"dim_pd":0.4359,"dol":24.46,"embi":127.0,"dxy":120.2,"ipd":1555.0,"ipd_proy":true,"regime":"Confianza S\u00f3lida"},{"periodo":"Ene.2026","year":2026,"drift":47.5,"drift_t":83.0,"drift_r":35.5,"dps":69.6,"mcs":89.4,"dvs":96.9,"crs":15.0,"dss":54.7,"pis":3.8,"igs":79.0,"dim_pd":0.4741,"dol":24.64,"embi":132.0,"dxy":119.2,"ipd":1593.2,"ipd_proy":true,"regime":"Confianza S\u00f3lida"},{"periodo":"Feb.2026","year":2026,"drift":44.5,"drift_t":83.8,"drift_r":39.3,"dps":73.4,"mcs":87.5,"dvs":97.4,"crs":16.7,"dss":48.4,"pis":29.0,"igs":78.0,"dim_pd":0.4778,"dol":24.8,"embi":135.0,"dxy":117.9,"ipd":1600.0,"ipd_proy":true,"regime":"Confianza S\u00f3lida"},{"periodo":"Mar.2026","year":2026,"drift":17.5,"drift_t":75.2,"drift_r":57.7,"dps":60.5,"mcs":78.6,"dvs":97.8,"crs":19.4,"dss":57.9,"pis":100.0,"igs":82.0,"dim_pd":0.4653,"dol":25.52,"embi":139.0,"dxy":119.9,"ipd":1606.9,"ipd_proy":true,"regime":"Expansi\u00f3n"},{"periodo":"Abr.2026","year":2026,"drift":41.5,"drift_t":79.1,"drift_r":37.6,"dps":72.2,"mcs":76.5,"dvs":98.2,"crs":13.0,"dss":53.7,"pis":21.7,"igs":76.4,"dim_pd":0.4766,"dol":25.7,"embi":129.0,"dxy":119.0,"ipd":1613.9,"ipd_proy":true,"regime":"Confianza S\u00f3lida"},{"periodo":"May.2026","year":2026,"drift":52.1,"drift_t":85.2,"drift_r":33.1,"dps":84.6,"mcs":79.0,"dvs":98.7,"crs":5.4,"dss":52.5,"pis":6.5,"igs":83.7,"dim_pd":0.4887,"dol":25.49,"embi":115.0,"dxy":118.8,"ipd":1620.8,"ipd_proy":true,"regime":"Confianza S\u00f3lida"},{"periodo":"","year":2026,"drift":51.2,"drift_t":83.2,"drift_r":32.0,"dps":79.4,"mcs":79.0,"dvs":99.1,"crs":2.2,"dss":58.7,"pis":9.4,"igs":73.2,"dim_pd":0.4836,"dol":null,"embi":110.0,"dxy":120.1,"ipd":1627.8,"ipd_proy":true,"regime":"Confianza S\u00f3lida"},{"periodo":"","year":2026,"drift":48.4,"drift_t":83.3,"drift_r":34.9,"dps":79.4,"mcs":79.0,"dvs":99.6,"crs":1.2,"dss":61.1,"pis":11.8,"igs":84.1,"dim_pd":null,"dol":null,"embi":108.0,"dxy":120.6,"ipd":1634.8,"ipd_proy":true,"regime":"Confianza S\u00f3lida"},{"periodo":"","year":2026,"drift":53.5,"drift_t":83.4,"drift_r":29.9,"dps":79.4,"mcs":79.0,"dvs":100.0,"crs":0.0,"dss":52.9,"pis":2.5,"igs":80.7,"dim_pd":null,"dol":null,"embi":106.0,"dxy":118.9,"ipd":1641.9,"ipd_proy":true,"regime":"Confianza S\u00f3lida"}];
+const DRIFT_META={"generado":"2026-09-10","N":104,"ultimo_drift":53.5,"ultimo_regimen":"Confianza S\u00f3lida","meses_favorables":41,"corr_drift_dol":-0.839};
+const ANNUAL_AVGS={"2018":-22.7,"2019":-0.0,"2020":18.7,"2021":31.6,"2022":7.9,"2023":12.8,"2024":27.0,"2025":37.3,"2026":44.5};
+const ANNUAL_NOTES={"2018":"Ecosistema digital incipiente. Riesgo macro supera la confianza. A\u00f1o de construcci\u00f3n de base.","2019":"Expansi\u00f3n org\u00e1nica de Yape y Plin. El sol empieza a ganar terreno digital.","2020":"COVID como catalizador bifurcado: crisis abr-may \u2192 aceleraci\u00f3n digital masiva ago-dic.","2021":"Desdolarizaci\u00f3n m\u00e1xima. Feb-2021: m\u00ednimo hist\u00f3rico 23.79%. DRIFT pico +55.8.","2022":"Impacto Castillo + inflaci\u00f3n global. DRIFT-T sigui\u00f3 creciendo \u2014 el ecosistema resisti\u00f3.","2023":"Interoperabilidad BCRP consolida el canal digital. Recuperaci\u00f3n del r\u00e9gimen favorable.","2024":"Expansi\u00f3n sostenida. Segundo semestre en Confianza S\u00f3lida. Dolarizaci\u00f3n en m\u00ednimos.","2025":"DRIFT-T en m\u00e1ximos hist\u00f3ricos. IPD proyectado anclado a dato oficial BCRP mar-2026.","2026":"Datos reales disponibles. Confianza S\u00f3lida sostenida. 41 meses consecutivos favorables."};
+
+// ── UTILS ──────────────────────────────────────────────────
+const RC = {
+  'Confianza Sólida':{bg:'#185FA5',light:'#D6EAF8',cls:'cs'},
+  'Expansión':       {bg:'#3B6D11',light:'#EAF3DE',cls:'ex'},
+  'Equilibrio':      {bg:'#888780',light:'#F1EFE8',cls:'eq'},
+  'Tensión Alta':    {bg:'#BA7517',light:'#FAEEDA',cls:'ta'},
+  'Crisis Severa':   {bg:'#A32D2D',light:'#FCEBEB',cls:'sv'},
+  'Sin datos':       {bg:'#CCCCCC',light:'#F5F5F5',cls:'eq'},
+};
+const rc = r => RC[r]||RC['Equilibrio'];
+const sgn = v => v>=0?'+':'';
+const f1 = v => v!=null?(sgn(v)+v.toFixed(1)):'N/A';
+const f2 = v => v!=null?v.toFixed(2)+'%':'N/A';
+
+// Filter valid records
+const DATA = DRIFT_DATA.filter(d=>d.drift!=null&&d.dol!=null&&d.periodo&&d.periodo!='nan'&&d.periodo!='');
+const YEARS = [...new Set(DATA.map(d=>d.year))].filter(Boolean).sort();
+const BY_YEAR = {};
+YEARS.forEach(y=>{
+  const rows=DATA.filter(d=>d.year===y);
+  const avg=k=>rows.reduce((a,d)=>a+(d[k]||0),0)/rows.length;
+  BY_YEAR[y]={drift:+(avg('drift').toFixed(1)),drift_t:+(avg('drift_t').toFixed(1)),
+              drift_r:+(avg('drift_r').toFixed(1)),dol:+(avg('dol').toFixed(2)),
+              regime:rows[Math.round(rows.length/2)].regime,rows};
+});
+
+// ── NAV ──────────────────────────────────────────────────────
+function showPage(id,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  btn.classList.add('active');
+  if(id==='componentes') renderComponents();
+  if(id==='tendencia') renderTendencia();
+}
+
+// ── KPIs ─────────────────────────────────────────────────────
+function initKPIs(){
+  const last=DATA[DATA.length-1];
+  const r=rc(last.regime);
+  const fav=DRIFT_META.meses_favorables||0;
+  document.getElementById('nav-meta').textContent=
+    `Perú · N=${DATA.length} · ${last.periodo}`;
+  document.getElementById('meta-fav').textContent=fav;
+  document.getElementById('footer-date').textContent=
+    `Actualizado: ${DRIFT_META.generado}`;
+
+  const kpis=[
+    {l:'DRIFT neto',v:f1(last.drift),s:last.regime,
+     color:r.bg,top:r.bg},
+    {l:'DRIFT-T Confianza',v:last.drift_t!=null?last.drift_t.toFixed(1):'N/A',
+     s:`DPS ${(last.dps||0).toFixed(0)} · MCS ${(last.mcs||0).toFixed(0)}`,
+     color:'#0D7377',top:'#0D7377'},
+    {l:'DRIFT-R Riesgo',v:last.drift_r!=null?last.drift_r.toFixed(1):'N/A',
+     s:`CRS ${(last.crs||0).toFixed(0)} · DSS ${(last.dss||0).toFixed(0)}`,
+     color:'#A32D2D',top:'#A32D2D'},
+    {l:'Dolarización crediticia',v:f2(last.dol),s:'mín histórico: 23.79%',
+     color:'#3B6D11',top:'#3B6D11'},
+    {l:'Meses favorables',v:fav+'',s:'consecutivos al cierre',
+     color:'#185FA5',top:'#185FA5'},
+  ];
+  document.getElementById('kpi-grid').innerHTML=kpis.map(k=>
+    `<div class="kpi" style="border-top:3px solid ${k.top}">
+      <div class="kpi-label">${k.l}</div>
+      <div class="kpi-value" style="color:${k.color}">${k.v}</div>
+      <div class="kpi-sub">${k.s}</div>
+    </div>`).join('');
+
+  // Signal
+  const signals={
+    'Confianza Sólida':`El ecosistema digital en soles opera en condición óptima. <b>${fav} meses consecutivos</b> en régimen favorable. Dolarización en <b>${f2(last.dol)}</b>. Ventana abierta para escalar productos financieros en soles.`,
+    'Expansión':`La confianza digital supera el riesgo macro. <b>${fav} meses consecutivos</b> en régimen favorable. Condiciones favorables para avanzar en productos en moneda local.`,
+    'Equilibrio':'Fuerzas balanceadas. Momento de transición y monitoreo. Sensible a shocks.',
+    'Tensión Alta':'El riesgo macro presiona la confianza digital. Cautela antes de comprometer recursos en productos en soles.',
+    'Crisis Severa':'Riesgo supera ampliamente la confianza. Alta presión hacia dolarización defensiva.',
+  };
+  document.getElementById('regime-signal').innerHTML=
+    `<div class="signal" style="background:${r.light};border-left:4px solid ${r.bg}">
+      <h3 style="color:${r.bg}">${last.regime} — ${last.periodo}</h3>
+      <p style="color:${r.bg}">${signals[last.regime]||''}</p>
+    </div>`;
+
+  const corr=DRIFT_META.corr_drift_dol||0;
+  document.getElementById('main-insight').textContent=
+    `${last.periodo}: DRIFT ${f1(last.drift)} · T=${(last.drift_t||0).toFixed(1)} R=${(last.drift_r||0).toFixed(1)} · `+
+    `Dolarización ${f2(last.dol)} · DimPD ${last.dim_pd?(last.dim_pd*100).toFixed(1)+'%':'N/A'} · `+
+    `EMBI ${last.embi||'N/A'} bps · DXY ${last.dxy||'N/A'} · IPD ${last.ipd||'N/A'}M ops · `+
+    `r(DRIFT,Dol)=${corr}`;
+}
+
+// ── CHARTS ───────────────────────────────────────────────────
+let charts={};
+function dc(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+
+function initCharts(){
+  const labels=DATA.map(d=>d.periodo);
+
+  // DRIFT neto
+  dc('drift');
+  charts.drift=new Chart(document.getElementById('chart-drift').getContext('2d'),{
+    type:'line',
+    data:{labels,datasets:[{
+      label:'DRIFT',data:DATA.map(d=>d.drift),
+      borderColor:'#185FA5',borderWidth:2,pointRadius:0,fill:true,
+      backgroundColor:'rgba(24,95,165,0.08)',tension:.3
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false},tooltip:{enabled:false}},
+      scales:{
+        x:{ticks:{maxTicksLimit:10,font:{size:9},maxRotation:0},
+           grid:{color:'#F0F0EE'}},
+        y:{ticks:{font:{size:9},callback:v=>v>0?'+'+v:v},
+           grid:{color:ctx=>{
+             const v=ctx.tick.value;
+             return v===0?'#AAAAAA':v===20||v===-20?'#DDDDDD':'#F4F4F2';
+           },lineWidth:ctx=>ctx.tick.value===0?1.5:.4}}
+      },
+      onHover:(evt,els,c)=>{
+        if(!els.length)return;
+        const i=els[0].index,d=DATA[i],r=rc(d.regime);
+        document.getElementById('drift-tooltip').innerHTML=
+          `<b>${d.periodo}</b> &nbsp;
+           <span style="color:#185FA5">T:${(d.drift_t||0).toFixed(1)}</span> &nbsp;
+           <span style="color:#A32D2D">R:${(d.drift_r||0).toFixed(1)}</span> &nbsp;
+           <b style="color:${r.bg}">DRIFT:${f1(d.drift)}</b> &nbsp;
+           <span style="background:${r.light};color:${r.bg};padding:1px 7px;
+             border-radius:10px;font-size:9.5px">${d.regime}</span> &nbsp;
+           <span>Dol:${f2(d.dol)}</span> &nbsp;
+           <span>EMBI:${d.embi||'N/A'} bps</span> &nbsp;
+           <span>DXY:${d.dxy||'N/A'}</span>`;
+      }
+    }
+  });
+
+  // Trust vs Riesgo
+  dc('decomp');
+  charts.decomp=new Chart(document.getElementById('chart-decomp').getContext('2d'),{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'DRIFT-T',data:DATA.map(d=>d.drift_t),borderColor:'#185FA5',
+       borderWidth:1.5,pointRadius:0,fill:false,tension:.3},
+      {label:'DRIFT-R',data:DATA.map(d=>d.drift_r),borderColor:'#A32D2D',
+       borderWidth:1.5,pointRadius:0,fill:false,tension:.3,borderDash:[4,2]},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{font:{size:10},boxWidth:16}}},
+      scales:{x:{ticks:{maxTicksLimit:8,font:{size:9},maxRotation:0}},
+              y:{min:0,max:110,ticks:{font:{size:9}}}}}
+  });
+
+  // DRIFT vs Dolarización
+  dc('dol');
+  charts.dol=new Chart(document.getElementById('chart-dol').getContext('2d'),{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'DRIFT',data:DATA.map(d=>d.drift),borderColor:'#185FA5',
+       borderWidth:1.5,pointRadius:0,fill:false,tension:.3},
+      {label:'Dolarización %',data:DATA.map(d=>d.dol),borderColor:'#A32D2D',
+       borderWidth:1.5,pointRadius:0,fill:false,tension:.3,yAxisID:'y2'},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{font:{size:10},boxWidth:16}}},
+      scales:{
+        x:{ticks:{maxTicksLimit:8,font:{size:9},maxRotation:0}},
+        y:{ticks:{font:{size:9},callback:v=>v>0?'+'+v:v}},
+        y2:{position:'right',min:20,max:35,
+            ticks:{font:{size:9},color:'#A32D2D',callback:v=>v+'%'},
+            grid:{display:false}}
+      }}
+  });
+}
+
+// ── COMPONENTES ──────────────────────────────────────────────
+function renderBar(label,val,color,weight){
+  const pct=Math.min(100,Math.max(0,val||0));
+  return `<div class="bar-row">
+    <div class="bar-meta">
+      <span class="bar-lbl">${label} <span style="font-size:9px;color:#bbb">w:${weight}%</span></span>
+      <span class="bar-val" style="color:${color}">${(val||0).toFixed(1)}</span>
+    </div>
+    <div class="bar-bg"><div class="bar-fill" style="width:${pct}%;background:${color};opacity:.7"></div></div>
+  </div>`;
+}
+
+function renderComponents(){
+  const sel=document.getElementById('month-sel');
+  if(!sel.options.length){
+    DATA.forEach((d,i)=>{
+      const o=document.createElement('option');
+      o.value=i; o.text=d.periodo;
+      if(i===DATA.length-1) o.selected=true;
+      sel.appendChild(o);
+    });
+  }
+  const d=DATA[parseInt(sel.value)];
+  document.getElementById('trust-bars').innerHTML=
+    `<div style="font-size:11px;font-weight:700;color:#0D7377;margin-bottom:8px">
+      DRIFT-T = ${(d.drift_t||0).toFixed(1)}</div>`+
+    renderBar('DPS — Penetración canales digitales',d.dps,'#185FA5',40)+
+    renderBar('MCS — Desdolarización crediticia',d.mcs,'#0D7377',40)+
+    renderBar('DVS — Volumen operaciones digitales',d.dvs,'#3B6D11',20);
+  document.getElementById('risk-bars').innerHTML=
+    `<div style="font-size:11px;font-weight:700;color:#A32D2D;margin-bottom:8px">
+      DRIFT-R = ${(d.drift_r||0).toFixed(1)}</div>`+
+    renderBar('CRS — Riesgo país EMBI',d.crs,'#A32D2D',35)+
+    renderBar('DSS — Índice global dólar',d.dss,'#BA7517',25)+
+    renderBar('PIS — Inestabilidad precios',d.pis,'#888780',20)+
+    renderBar('IGS — Brecha mercado BVL',d.igs,'#444441',20);
+
+  dc('radar');
+  const avg=k=>DATA.reduce((a,dd)=>a+(dd[k]||0),0)/DATA.length;
+  charts.radar=new Chart(document.getElementById('chart-radar').getContext('2d'),{
+    type:'radar',
+    data:{
+      labels:['DPS','MCS','DVS','CRS (inv)','DSS (inv)','PIS (inv)','IGS (inv)'],
+      datasets:[
+        {label:d.periodo,
+         data:[d.dps,d.mcs,d.dvs,100-(d.crs||0),100-(d.dss||0),100-(d.pis||0),100-(d.igs||0)],
+         backgroundColor:'rgba(27,58,107,.15)',borderColor:'#1B3A6B',
+         borderWidth:2,pointRadius:4,pointBackgroundColor:'#1B3A6B'},
+        {label:'Promedio histórico',
+         data:[avg('dps'),avg('mcs'),avg('dvs'),100-avg('crs'),100-avg('dss'),100-avg('pis'),100-avg('igs')],
+         backgroundColor:'rgba(136,135,128,.08)',borderColor:'#888780',
+         borderWidth:1.5,pointRadius:3,borderDash:[4,2]},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      scales:{r:{min:0,max:100,ticks:{stepSize:25,font:{size:9}},
+                 pointLabels:{font:{size:10}}}},
+      plugins:{legend:{labels:{font:{size:10},boxWidth:14}}}}
+  });
+}
+
+// ── TENDENCIA ─────────────────────────────────────────────────
+let selYear=YEARS[YEARS.length-1];
+function renderTendencia(){
+  // Cards anuales
+  document.getElementById('annual-grid').innerHTML=YEARS.map(y=>{
+    const yd=BY_YEAR[y],r=rc(yd.regime);
+    const act=y===selYear?' active':'';
+    return `<div class="yr-card${act}" onclick="selAnual(${y})"
+      style="background:${r.light}">
+      <div class="yr-label">${y}</div>
+      <div class="yr-val" style="color:${r.bg}">${yd.drift>0?'+':''}${yd.drift}</div>
+    </div>`;
+  }).join('');
+  selAnual(selYear,false);
+
+  // Bar chart
+  dc('annual');
+  charts.annual=new Chart(document.getElementById('chart-annual').getContext('2d'),{
+    type:'bar',
+    data:{labels:YEARS,datasets:[
+      {label:'DRIFT-T',data:YEARS.map(y=>BY_YEAR[y].drift_t),
+       backgroundColor:'rgba(13,115,119,.55)',borderColor:'#0D7377',borderWidth:1},
+      {label:'DRIFT-R',data:YEARS.map(y=>BY_YEAR[y].drift_r),
+       backgroundColor:'rgba(163,45,45,.45)',borderColor:'#A32D2D',borderWidth:1},
+      {label:'DRIFT neto',data:YEARS.map(y=>BY_YEAR[y].drift),
+       type:'line',borderColor:'#1B3A6B',borderWidth:2.5,
+       pointRadius:5,fill:false,tension:.3},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{font:{size:10},boxWidth:14}}},
+      scales:{
+        x:{ticks:{font:{size:10}}},
+        y:{ticks:{font:{size:9},callback:v=>v>0?'+'+v:v},
+           grid:{color:ctx=>ctx.tick.value===0?'#AAA':'#F0F0EE',
+                 lineWidth:ctx=>ctx.tick.value===0?1.5:.4}}
+      }}
+  });
+
+  // Dolarización
+  dc('dol2');
+  charts.dol2=new Chart(document.getElementById('chart-dol2').getContext('2d'),{
+    type:'line',
+    data:{labels:DATA.map(d=>d.periodo),datasets:[{
+      label:'Dolarización %',data:DATA.map(d=>d.dol),
+      borderColor:'#A32D2D',borderWidth:2,pointRadius:0,
+      fill:true,tension:.3,backgroundColor:'rgba(163,45,45,.08)'
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{font:{size:10},boxWidth:14}}},
+      scales:{
+        x:{ticks:{maxTicksLimit:10,font:{size:9},maxRotation:0}},
+        y:{min:22,max:34,ticks:{font:{size:9},callback:v=>v+'%'}}
+      }}
+  });
+}
+
+function selAnual(y,rerender=true){
+  selYear=y;
+  const yd=BY_YEAR[y],r=rc(yd.regime);
+  const note=ANNUAL_NOTES[y]||'';
+  document.getElementById('annual-detail').innerHTML=
+    `<div style="background:${r.light};border-radius:8px;padding:12px 14px;
+      border-left:3px solid ${r.bg};margin-top:8px">
+      <div style="display:flex;gap:16px;margin-bottom:6px;flex-wrap:wrap">
+        <span style="font-size:11px"><b>DRIFT-T:</b> ${yd.drift_t}</span>
+        <span style="font-size:11px"><b>DRIFT-R:</b> ${yd.drift_r}</span>
+        <span style="font-size:11px"><b>DRIFT neto:</b> <b style="color:${r.bg}">${yd.drift>0?'+':''}${yd.drift}</b></span>
+        <span style="font-size:11px"><b>Dolarización:</b> ${yd.dol}%</span>
+      </div>
+      <p style="font-size:11px;color:${r.bg};line-height:1.6">${note}</p>
+    </div>`;
+  if(rerender){
+    document.querySelectorAll('.yr-card').forEach((el,i)=>{
+      const yr=YEARS[i],rd=rc(BY_YEAR[yr].regime);
+      el.style.background=rd.light;
+      el.classList.toggle('active',yr===y);
+    });
+  }
+}
+
+// ── INIT ──────────────────────────────────────────────────────
+initKPIs();
+initCharts();
+</script>
+</body>
+</html>
